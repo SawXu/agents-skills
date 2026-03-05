@@ -5,7 +5,7 @@ description: Use when the user asks to fill, update, or append weekly reports (�
 
 # Weekly Report Assistant
 
-Automates weekly report operations on SeaTable-based report systems using `agent-browser`. Analyzes git commits to generate structured progress summaries, then navigates the web UI to fill or append content with correct rich-text formatting.
+Automates weekly report operations on SeaTable-based report systems using `agent-browser`. Analyzes recent activity (via GitLab API or local git commits) to generate structured progress summaries, then navigates the web UI to fill or append content with correct rich-text formatting.
 
 **REQUIRED TOOL:** `agent-browser` must be installed (`npm install -g agent-browser`).
 
@@ -33,13 +33,13 @@ Do not proceed until the variable is set.
 
 | Task | Reference |
 |------|-----------|
-| Git commit analysis & content generation | [references/git-analysis.md](references/git-analysis.md) |
+| Activity analysis & content generation | [references/git-analysis.md](references/git-analysis.md) |
 | SeaTable Slate editor operations | [references/slate-editor.md](references/slate-editor.md) |
 | Navigation & authentication | [references/navigation.md](references/navigation.md) |
 
 ## Workflow
 
-1. **Analyze git commits** for the target week → see [git-analysis.md](references/git-analysis.md)
+1. **Analyze recent activity** for the target week → see [git-analysis.md](references/git-analysis.md)
 2. **Deduplicate** against previous week's report content
 3. **Navigate and authenticate** via `agent-browser` → see [navigation.md](references/navigation.md)
 4. **Locate** the target record in the report list
