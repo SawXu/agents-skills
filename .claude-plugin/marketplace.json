@@ -1,0 +1,23 @@
+{
+  "name": "agents-skills",
+  "owner": {
+    "name": "SawXu",
+    "url": "https://github.com/SawXu"
+  },
+  "metadata": {
+    "description": "SawXu's AI coding assistant skills collection",
+    "version": "1.0.0",
+    "repository": "https://github.com/SawXu/agents-skills"
+  },
+  "plugins": [
+    {
+      "name": "weekly-report-assistant",
+      "description": "Automates weekly report (周报) operations on SeaTable. Analyzes git commits, generates structured summaries, and fills reports via browser automation.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "skills/weekly-report-assistant"
+      ]
+    }
+  ]
+}
