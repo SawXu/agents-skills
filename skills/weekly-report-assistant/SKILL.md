@@ -5,9 +5,9 @@ description: Use when the user asks to fill, update, or append weekly reports (�
 
 # Weekly Report Assistant
 
-Automates weekly report operations on SeaTable-based report systems using `agent-browser`. Analyzes recent activity (via GitLab API or local git commits) to generate structured progress summaries, then navigates the web UI to fill or append content with correct rich-text formatting.
+Automates weekly report operations on SeaTable-based report systems using `playwright-cli`. Analyzes recent activity (via GitLab API or local git commits) to generate structured progress summaries, then navigates the web UI to fill or append content with correct rich-text formatting.
 
-**REQUIRED TOOL:** `agent-browser` must be installed (`npm install -g agent-browser`).
+**REQUIRED TOOL:** `playwright-cli` must be installed (`npm install -g @playwright/cli`).
 
 ## Environment Variables
 
@@ -41,7 +41,7 @@ Do not proceed until the variable is set.
 
 1. **Analyze recent activity** for the target week → see [git-analysis.md](references/git-analysis.md)
 2. **Deduplicate** against previous week's report content
-3. **Navigate and authenticate** via `agent-browser` → see [navigation.md](references/navigation.md)
+3. **Navigate and authenticate** via `playwright-cli` → see [navigation.md](references/navigation.md)
 4. **Locate** the target record in the report list
 5. **Edit** using Slate-compatible operations → see [slate-editor.md](references/slate-editor.md)
 6. **Verify** content structure before closing
