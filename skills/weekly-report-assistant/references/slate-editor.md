@@ -8,150 +8,226 @@ SeaTable uses a **Slate.js rich-text editor**. This is the most error-prone part
 > Direct DOM manipulation (`innerHTML`, `insertHTML`, `execCommand`) will NOT persist.
 > Only keyboard input, Slate-recognized paste events, and Slate API calls are saved.
 
-## Opening the Editor
+## Critical `eval` Limitations
 
-The report list view is read-only. To edit a record's long-text cell:
+`playwright-cli eval` does **not** support:
+- `const` / `let` — use `var` only
+- Multi-line JS expressions — use `run-code --filename=` instead
 
-```javascript
-// Double-click the target cell to open Slate editor
-agent-browser eval --stdin <<'EVALEOF'
-var rows = document.querySelectorAll('.dtable-result-table-row');
-for (var i = 0; i < rows.length; i++) {
-  if (rows[i].textContent.includes('TARGET_IDENTIFIER')) {
-    var cells = rows[i].querySelectorAll('.dtable-result-table-long-text-cell');
-    if (cells[0]) {
-      cells[0].dispatchEvent(new MouseEvent('dblclick', {bubbles: true, cancelable: true}));
-    }
-    break;
-  }
+For any non-trivial JS (paste, selection, complex reads), always write to a file and use `run-code`:
+
+```bash
+cat > /tmp/my-script.js << 'EOF'
+async page => {
+  await page.evaluate(function() {
+    // your JS here using var, not const/let
+  });
 }
-'done'
-EVALEOF
+EOF
+playwright-cli run-code --filename=/tmp/my-script.js
+```
+
+## Opening the Slate Editor (周报填写 Form)
+
+In the 周报填写 form, rich-text fields show "编辑文本" as a placeholder. Click it to open the editor:
+
+```bash
+# For 本周进展 (first rich-text field)
+playwright-cli click "locator('div').filter({ hasText: /^编辑文本$/ }).first()"
+
+# For 下周计划 (second rich-text field)
+playwright-cli click "locator('div').filter({ hasText: /^编辑文本$/ }).nth(2)"
+```
+
+## Opening the Slate Editor (我的周报 List)
+
+In the report list view, double-click the long-text cell to open the editor:
+
+```bash
+cat > /tmp/open-editor.js << 'EOF'
+async page => {
+  await page.evaluate(function() {
+    var rows = document.querySelectorAll('.dtable-result-table-row');
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].textContent.includes('TARGET_IDENTIFIER')) {
+        var cells = rows[i].querySelectorAll('.dtable-result-table-long-text-cell');
+        if (cells[0]) {
+          cells[0].dispatchEvent(new MouseEvent('dblclick', {bubbles: true, cancelable: true}));
+        }
+        break;
+      }
+    }
+    return 'done';
+  });
+}
+EOF
+playwright-cli run-code --filename=/tmp/open-editor.js
+```
+
+## Focusing the Editor Before Paste
+
+**This step is required.** Simply clicking the field to open the editor is not enough — paste will silently fail unless you physically click inside the `[contenteditable]` area:
+
+```bash
+# Get editor position first
+playwright-cli eval "JSON.stringify(document.querySelector('[contenteditable=true]').getBoundingClientRect())"
+
+# Click inside the editor (use center X, top Y + a few pixels)
+playwright-cli mousemove 640 120
+playwright-cli mousedown
+playwright-cli mouseup
+```
+
+## Replacing All Content (Recommended Method)
+
+Write the paste script to a file and use `run-code`. This is the **only reliable method** for bulk content insertion:
+
+```bash
+cat > /tmp/paste-content.js << 'EOF'
+async page => {
+  await page.evaluate(function() {
+    var editor = document.querySelector('[contenteditable=true]');
+    editor.focus();
+    var range = document.createRange();
+    range.selectNodeContents(editor);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    var html = '<h3>Section Title</h3><ul><li><p>Item 1</p></li><li><p>Item 2</p></li></ul>';
+    var dt = new DataTransfer();
+    dt.setData('text/html', html);
+    var pasteEvent = new ClipboardEvent('paste', {
+      clipboardData: dt, bubbles: true, cancelable: true
+    });
+    editor.dispatchEvent(pasteEvent);
+    return 'pasted';
+  });
+}
+EOF
+playwright-cli run-code --filename=/tmp/paste-content.js
+```
+
+The HTML format for `html` variable:
+
+```html
+<h3>Project Name</h3>
+<ul>
+  <li><p>Task item one</p></li>
+  <li><p>Task item two</p></li>
+</ul>
+<h3>Another Project</h3>
+<ul>
+  <li><p>Task item three</p></li>
+</ul>
 ```
 
 ## Reading Editor Content (Verification)
 
-```javascript
-// Read full Slate structure
-agent-browser eval --stdin <<'EVALEOF'
-var editor = document.querySelector('[contenteditable="true"]');
-var children = Array.from(editor.children);
-children.map(function(c, i) {
-  var detail = '';
-  if (c.tagName === 'UL') {
-    var items = c.querySelectorAll(':scope > li');
-    detail = ' (' + items.length + ' items)';
-    var texts = Array.from(items).map(function(li) {
-      return '  - ' + li.textContent.substring(0, 60);
-    });
-    return i + ' ' + c.tagName + detail + ':\n' + texts.join('\n');
-  }
-  return i + ' ' + c.tagName + ': ' + c.textContent.replace(/\uFEFF/g,'').substring(0, 60);
-}).join('\n');
-EVALEOF
-```
-
-## Appending Content
-
-**Step 1:** Place cursor at the end of the last list item in existing content:
-
-```javascript
-agent-browser eval --stdin <<'EVALEOF'
-var editor = document.querySelector('[contenteditable="true"]');
-var lastUl = editor.querySelectorAll('ul');
-var targetUl = lastUl[lastUl.length - 1];
-var lastLi = targetUl.querySelector('li:last-child p');
-var range = document.createRange();
-range.selectNodeContents(lastLi);
-range.collapse(false);
-var sel = window.getSelection();
-sel.removeAllRanges();
-sel.addRange(range);
-'cursor placed'
-EVALEOF
-```
-
-**Step 2:** Use keyboard to type new content. Slate recognizes these markdown shortcuts:
-- `Enter` in a list item creates a new list item (same level)
-- `Enter` twice exits the list
-- `### ` at line start creates H3 heading (type the text, it auto-converts)
-
-**Step 3:** For adding a new section (H3 + list):
+Always verify after paste:
 
 ```bash
-# Exit current list, then type heading
-agent-browser press Enter
-agent-browser press Enter  # exits list to paragraph
-agent-browser keyboard type "### New Section Title"
-agent-browser press Enter
-agent-browser keyboard type "- First item"   # markdown shortcut creates UL
-agent-browser press Enter                    # new list item auto-created
-agent-browser keyboard type "Second item"    # type text only, no dash needed
+playwright-cli eval "document.querySelector('[contenteditable=true]').innerText.replace(/\uFEFF/g,'').substring(0, 500)"
 ```
 
-**IMPORTANT:** If Slate doesn't convert `### ` to H3 automatically, the alternative is:
-1. Type the heading text as a paragraph
-2. Select it
-3. Use the toolbar dropdown to change to "Heading 3"
+For full Slate DOM structure:
 
-## Replacing All Content
-
-Use clipboard paste with HTML — this is the ONLY reliable way to replace content in Slate:
-
-```javascript
-agent-browser eval --stdin <<'EVALEOF'
-var editor = document.querySelector('[contenteditable="true"]');
-editor.focus();
-var range = document.createRange();
-range.selectNodeContents(editor);
-var sel = window.getSelection();
-sel.removeAllRanges();
-sel.addRange(range);
-
-var html = '<h3>Section Title</h3><ul><li><p>Item 1</p></li><li><p>Item 2</p></li></ul>';
-var dt = new DataTransfer();
-dt.setData('text/html', html);
-var pasteEvent = new ClipboardEvent('paste', {
-  clipboardData: dt, bubbles: true, cancelable: true
-});
-editor.dispatchEvent(pasteEvent);
-'pasted'
-EVALEOF
+```bash
+cat > /tmp/read-editor.js << 'EOF'
+async page => {
+  return await page.evaluate(function() {
+    var editor = document.querySelector('[contenteditable=true]');
+    var children = Array.from(editor.children);
+    return children.map(function(c, i) {
+      if (c.tagName === 'UL') {
+        var items = c.querySelectorAll(':scope > li');
+        var texts = Array.from(items).map(function(li) {
+          return '  - ' + li.textContent.substring(0, 60);
+        });
+        return i + ' UL (' + items.length + ' items):\n' + texts.join('\n');
+      }
+      return i + ' ' + c.tagName + ': ' + c.textContent.replace(/\uFEFF/g,'').substring(0, 60);
+    }).join('\n');
+  });
+}
+EOF
+playwright-cli run-code --filename=/tmp/read-editor.js
 ```
 
-**WARNING:** Paste replaces selected content but may also leave residual nodes. Always verify with the reading pattern above and clean up with keyboard (select + backspace) if needed.
+## Appending Content (Keyboard Method)
+
+Place cursor at end of last list item, then type new sections:
+
+```bash
+cat > /tmp/place-cursor.js << 'EOF'
+async page => {
+  await page.evaluate(function() {
+    var editor = document.querySelector('[contenteditable=true]');
+    var lastUl = editor.querySelectorAll('ul');
+    var targetUl = lastUl[lastUl.length - 1];
+    var lastLi = targetUl.querySelector('li:last-child p');
+    var range = document.createRange();
+    range.selectNodeContents(lastLi);
+    range.collapse(false);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return 'cursor placed';
+  });
+}
+EOF
+playwright-cli run-code --filename=/tmp/place-cursor.js
+
+# Exit list, then add new section
+playwright-cli press Enter
+playwright-cli press Enter
+playwright-cli keyboard type "### New Section Title"
+playwright-cli press Enter
+playwright-cli keyboard type "- First item"
+playwright-cli press Enter
+playwright-cli keyboard type "Second item"
+```
+
+## Closing the Editor
+
+```bash
+playwright-cli press Escape
+```
+
+Slate auto-saves when the editor loses focus. No explicit save button exists.
 
 ## Deleting Content
 
-Use JS to select a range, then keyboard Backspace:
+Select a range with JS, then press Backspace:
 
-```javascript
-// Select from element N to end, then delete
-agent-browser eval --stdin <<'EVALEOF'
-var editor = document.querySelector('[contenteditable="true"]');
-var badElement = editor.children[N]; // index of first element to delete
-var range = document.createRange();
-range.setStartBefore(badElement);
-range.setEndAfter(editor.lastElementChild);
-var sel = window.getSelection();
-sel.removeAllRanges();
-sel.addRange(range);
-'selected'
-EVALEOF
-
-agent-browser press Backspace
+```bash
+cat > /tmp/select-range.js << 'EOF'
+async page => {
+  await page.evaluate(function() {
+    var editor = document.querySelector('[contenteditable=true]');
+    var badElement = editor.children[2]; // first element to delete
+    var range = document.createRange();
+    range.setStartBefore(badElement);
+    range.setEndAfter(editor.lastElementChild);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return 'selected';
+  });
+}
+EOF
+playwright-cli run-code --filename=/tmp/select-range.js
+playwright-cli press Backspace
 ```
-
-## Saving
-
-Slate auto-saves when you close the editor modal (click outside or press Escape). There is no explicit save button for cell content.
 
 ## Common Mistakes
 
 | Mistake | Impact | Fix |
 |---------|--------|-----|
-| Using `innerHTML =` or `insertHTML` | Content shows in DOM but doesn't persist after reload | Use keyboard input or paste events only |
-| Using `keyboard type` with `-` prefix on every line | Each line indents one more level (nested lists) | Use `-` only for the first item; after Enter, Slate auto-creates next `<li>` |
-| Not verifying after edit | Silent data loss | Always read editor structure after modification |
+| Using `innerHTML =` or `insertHTML` | Content shows in DOM but doesn't persist after reload | Use `run-code` paste method only |
+| Using `const`/`let` in `eval` | SyntaxError | Use `var` or write to file and use `run-code` |
+| Multi-line JS in `eval` | SyntaxError | Write to file and use `run-code --filename=` |
+| Not clicking inside `[contenteditable]` before paste | Paste silently fails (editor stays empty) | Use `mousemove + mousedown + mouseup` on editor coords |
+| Using `keyboard type` with `-` prefix on every line | Each line indents one more level (nested lists) | Use `-` only for the first item |
+| Not verifying after edit | Silent data loss | Always read editor `innerText` after paste |
 | Ctrl+A then Backspace to clear | Only partial deletion in Slate | Use JS range selection then Backspace |
-| Multiple Ctrl+Z to undo | Slate batches keyboard input as single undo step | May not fully undo; refresh page to get server-saved version |
