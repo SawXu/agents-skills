@@ -5,6 +5,7 @@ This reference assumes the agent is already using the `opencli-adapter-author` s
 - Start with `opencli doctor` if browser automation has not been validated in the current environment.
 - Use `opencli browser state` before interacting, and take a fresh snapshot after every page transition.
 - Prefer numeric refs from `state` or `find`; only fall back to CSS selectors when a ref is not available yet.
+- In `我的周报`, if a long-text cell refuses to open through a normal click, use a narrow page-side `dblclick` dispatch for that cell only, then refresh state immediately.
 
 ## Opening the Browser
 
@@ -101,6 +102,23 @@ opencli browser find --css "div[title='2026-04-22-徐宪辉']" --limit 3
 ```
 
 Then inspect the surrounding table structure before clicking. If the cell target is ambiguous, refresh `state` and select by the new numeric ref.
+
+If a normal click does not open the rich-text popup, use a row-local double-click dispatch:
+
+```bash
+opencli browser eval "(() => {
+  const row = [...document.querySelectorAll('.dtable-result-table-row')]
+    .find(r => r.textContent.includes('2026-04-22-徐宪辉'));
+  if (!row) return { ok: false, reason: 'row-not-found' };
+  const cell = row.querySelector('.dtable-result-table-long-text-cell');
+  if (!cell) return { ok: false, reason: 'cell-not-found' };
+  cell.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }));
+  return { ok: true, text: cell.textContent.slice(0, 80) };
+})()"
+opencli browser state
+```
+
+After the popup opens, discard all earlier refs. The editor dialog creates a new interactive subtree and stale refs are common.
 
 ## Submit & Confirmation
 
