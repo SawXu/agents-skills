@@ -41,7 +41,7 @@ Claude Code 用户也可通过 Marketplace 安装：
 
 | 技能 | 说明 |
 | ---- | ---- |
-| `weekly-report-assistant` | 自动化周报填写：通过 glab API 获取 GitLab 跨项目活动（或回退到本地 git log），生成结构化摘要，通过 playwright-cli 浏览器自动化填写 SeaTable 周报系统 |
+| `weekly-report-assistant` | 自动化周报填写：通过 glab API 获取 GitLab 跨项目活动（或回退到本地 git log），生成结构化摘要，支持 `playwright-cli` 与 `opencli-browser` 导航；其中 SeaTable Slate 富文本编辑优先走 `playwright-cli`，`opencli-browser` 仅建议用于导航、核对和已验证的空白字段提交路径 |
 
 ## 技能工作原理
 
