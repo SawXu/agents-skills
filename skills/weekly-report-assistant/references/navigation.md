@@ -92,8 +92,9 @@ When the current week's report already exists:
 1. Open `我的周报`
 2. Locate the row by title such as `2026-04-22-徐宪辉`
 3. Open the target long-text cell
-4. Edit via the guarded path in `slate-editor.md`
-5. Close the popup and verify the table cell text changed
+4. If this week's content still uses Markdown-style markers, rewrite the whole field into plain rich text via the guarded path in `slate-editor.md`
+5. If preview and reopened content disagree after the normal replace path, switch to the fallback path in `slate-editor.md`
+6. Close the popup and verify the table cell text changed
 
 Locate the row with `find` first:
 

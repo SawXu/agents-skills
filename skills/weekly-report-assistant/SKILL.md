@@ -5,7 +5,7 @@ description: Use when the user asks to fill, update, or append weekly reports (�
 
 # Weekly Report Assistant
 
-Automates weekly report operations on SeaTable-based report systems. It analyzes recent activity (via GitLab API or local git commits), generates structured progress summaries, and fills the SeaTable UI with Slate-aware rich-text operations.
+Automates weekly report operations on SeaTable-based report systems. It analyzes recent activity (via GitLab API or local git commits), generates plain progress summaries that render cleanly in SeaTable, and fills the SeaTable UI with Slate-aware rich-text operations.
 
 **Required OpenCLI skill:** `opencli-adapter-author`
 
@@ -14,7 +14,9 @@ Automates weekly report operations on SeaTable-based report systems. It analyzes
 - Use the `opencli-adapter-author` skill as the top-level workflow for this report system. It provides the recon, adapter, and verify discipline, while the concrete page operations still use `opencli browser *` commands.
 - Follow the `opencli-adapter-author` workflow when operating this system: validate the environment with `opencli doctor`, prefer repeatable OpenCLI flows, and use fresh `state` or `find` snapshots before page interactions.
 - Treat SeaTable Slate rich-text fields as fragile. Any write must be verified after the popup closes; visible text inside the editor popup alone is not enough.
-- When modifying an existing weekly report in `我的周报`, prefer reading the current text, composing the final full content offline, and writing it back through the Slate-compatible paste path. Incremental `type`-based append is not reliable enough.
+- Generate report content as plain paragraphs for Slate rich text. Do not emit Markdown markers such as `#`, `##`, `###`, `-`, `*`, `1.`, or fenced code blocks.
+- When modifying an existing weekly report in `我的周报`, prefer reading the current text, composing the final full content offline, and writing it back through the Slate-compatible paste path. If this week's report already contains Markdown-style markers, rewrite the whole field into plain rich text instead of appending to it.
+- If the standard replace flow makes the preview look correct but reopening the editor still shows stale Markdown, treat it as a Slate/React persistence failure and switch to the fallback path in `references/slate-editor.md`.
 - If the OpenCLI flow cannot prove the field value persisted, do **not** submit. Stop and ask the user whether to retry or switch to a manual fallback.
 
 ## Environment Variables
@@ -62,22 +64,22 @@ Do not proceed until the variable is set.
 - Prefer creating the current week's report in `周报填写` when the row does not exist yet.
 - Opening an existing `我的周报` long-text cell may require a page-side `dblclick` dispatch. A normal single click on the table cell often only focuses the row and does not open the editor.
 - Editing an **existing** rich-text cell in `我的周报` is higher risk than filling a blank field. Re-open and verify the rendered value after each edit.
+- If this week's report already uses Markdown-style markers, normalize the whole field back to plain rich text before submit.
+- If preview text and reopened editor text disagree, the reopened editor wins. Keep fixing until the reopened content is clean.
 - Do not rely on popup-only evidence. If the form preview or table cell does not reflect the new content, the write did not persist.
 
 ## Report Content Format
 
-SeaTable rich text uses this structure:
+SeaTable rich text should use plain paragraphs:
 
-```
-H3: Project/Component Name
-UL:
-  - Completed task 1
-  - Completed task 2
+```text
+Project/Component Name
+Completed task 1
+Completed task 2
 
-H3: Another Component
-UL:
-  - Task 3
-  - Task 4
+Another Component
+Task 3
+Task 4
 ```
 
-Keep items concise (one line each). Group by project, not by date.
+Keep items concise (one line each). Group by project, not by date. Use blank lines between groups, and do not include Markdown markers such as `###` or `-` in the final field value.
