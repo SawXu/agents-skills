@@ -1,19 +1,20 @@
 ---
 name: weekly-report-assistant
-description: Use when the user asks to fill, update, or append weekly reports (周报) on a SeaTable-based system, or when analyzing git commits to generate weekly progress summaries. Applies when SeaTable rich-text fields must be edited safely, especially when `opencli-browser` navigation is acceptable but Slate editor persistence is fragile.
+description: Use when the user asks to fill, update, or append weekly reports (周报) on a SeaTable-based system, or when analyzing git commits to generate weekly progress summaries. Applies when a live browser must be driven through the `opencli-adapter-author` skill and SeaTable Slate rich-text fields need strict post-edit verification.
 ---
 
 # Weekly Report Assistant
 
-Automates weekly report operations on SeaTable-based report systems. It analyzes recent activity (via GitLab API or local git commits), generates structured progress summaries, and fills the SeaTable UI with Slate-safe rich-text operations.
+Automates weekly report operations on SeaTable-based report systems. It analyzes recent activity (via GitLab API or local git commits), generates structured progress summaries, and fills the SeaTable UI with Slate-aware rich-text operations.
 
-**Preferred tool:** `playwright-cli` for any Slate rich-text create/replace flow.
+**Required OpenCLI skill:** `opencli-adapter-author`
 
-**Allowed tool split:**
+**Browser operation rules:**
 
-- Use `opencli-browser` for page navigation, view switching, locating the target row, and post-submit verification.
-- Use `playwright-cli` for SeaTable Slate editor replacement, append, and any edit that must persist reliably.
-- If the user explicitly requires `opencli-browser` for submission, only use it with the proven paste-like path from `references/slate-editor.md`. Do **not** rely on `opencli browser type` for SeaTable rich-text persistence.
+- Use the `opencli-adapter-author` skill as the top-level workflow for this report system. It provides the recon, adapter, and verify discipline, while the concrete page operations still use `opencli browser *` commands.
+- Follow the `opencli-adapter-author` workflow when operating this system: validate the environment with `opencli doctor`, prefer repeatable OpenCLI flows, and use fresh `state` or `find` snapshots before page interactions.
+- Treat SeaTable Slate rich-text fields as fragile. Any write must be verified after the popup closes; visible text inside the editor popup alone is not enough.
+- If the OpenCLI flow cannot prove the field value persisted, do **not** submit. Stop and ask the user whether to retry or switch to a manual fallback.
 
 ## Environment Variables
 
@@ -47,18 +48,19 @@ Do not proceed until the variable is set.
 
 1. **Analyze recent activity** for the target week → see [git-analysis.md](references/git-analysis.md)
 2. **Deduplicate** against previous week's report content
-3. **Navigate and authenticate** via `playwright-cli` or `opencli-browser` → see [navigation.md](references/navigation.md)
-4. **Locate** the target record in the report list
-5. **Edit** using Slate-compatible operations → see [slate-editor.md](references/slate-editor.md)
-6. **Verify** content structure before closing
+3. **Navigate and authenticate** under the `opencli-adapter-author` workflow → see [navigation.md](references/navigation.md)
+4. **Locate** the target record or open the new-report form
+5. **Edit** using the Slate-safe OpenCLI path → see [slate-editor.md](references/slate-editor.md)
+6. **Verify** the rendered field value before submit
+7. **Submit and re-check** the created or updated record
 
 ## Tool Decision Rules
 
-- `playwright-cli`: default for create, replace, append, or cleanup inside SeaTable Slate rich-text fields.
-- `opencli-browser`: good for opening the system, switching between `周报填写` and `我的周报`, selecting `填写人`, finding the current week's row, and checking whether a record exists.
-- `opencli-browser` plus custom page-side paste event: acceptable for creating a **new** weekly report when the field is still empty and you verify the form preview changed from `编辑文本` to rendered paragraphs.
-- `opencli-browser` plus default `type`: not acceptable for SeaTable Slate fields. It can show text inside the popup editor while the underlying form field still remains empty.
-- Editing an **existing** rich-text cell in `我的周报` with `opencli-browser` is high risk. The editor may keep stale nodes and partially merge old/new content. Prefer `playwright-cli`.
+- `opencli-adapter-author` is the required parent skill for this workflow, and the concrete browser operations are executed with `opencli browser *` commands.
+- Use `opencli browser state` or `opencli browser find` before each interaction; refs are only valid for the current snapshot.
+- Prefer creating the current week's report in `周报填写` when the row does not exist yet.
+- Editing an **existing** rich-text cell in `我的周报` is higher risk than filling a blank field. Re-open and verify the rendered value after each edit.
+- Do not rely on popup-only evidence. If the form preview or table cell does not reflect the new content, the write did not persist.
 
 ## Report Content Format
 
