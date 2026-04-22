@@ -14,6 +14,7 @@ Automates weekly report operations on SeaTable-based report systems. It analyzes
 - Use the `opencli-adapter-author` skill as the top-level workflow for this report system. It provides the recon, adapter, and verify discipline, while the concrete page operations still use `opencli browser *` commands.
 - Follow the `opencli-adapter-author` workflow when operating this system: validate the environment with `opencli doctor`, prefer repeatable OpenCLI flows, and use fresh `state` or `find` snapshots before page interactions.
 - Treat SeaTable Slate rich-text fields as fragile. Any write must be verified after the popup closes; visible text inside the editor popup alone is not enough.
+- When modifying an existing weekly report in `我的周报`, prefer reading the current text, composing the final full content offline, and writing it back through the Slate-compatible paste path. Incremental `type`-based append is not reliable enough.
 - If the OpenCLI flow cannot prove the field value persisted, do **not** submit. Stop and ask the user whether to retry or switch to a manual fallback.
 
 ## Environment Variables
@@ -59,6 +60,7 @@ Do not proceed until the variable is set.
 - `opencli-adapter-author` is the required parent skill for this workflow, and the concrete browser operations are executed with `opencli browser *` commands.
 - Use `opencli browser state` or `opencli browser find` before each interaction; refs are only valid for the current snapshot.
 - Prefer creating the current week's report in `周报填写` when the row does not exist yet.
+- Opening an existing `我的周报` long-text cell may require a page-side `dblclick` dispatch. A normal single click on the table cell often only focuses the row and does not open the editor.
 - Editing an **existing** rich-text cell in `我的周报` is higher risk than filling a blank field. Re-open and verify the rendered value after each edit.
 - Do not rely on popup-only evidence. If the form preview or table cell does not reflect the new content, the write did not persist.
 

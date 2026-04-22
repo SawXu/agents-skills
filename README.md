@@ -41,7 +41,7 @@ Claude Code 用户也可通过 Marketplace 安装：
 
 | 技能 | 说明 |
 | ---- | ---- |
-| `weekly-report-assistant` | 自动化周报填写：通过 glab API 获取 GitLab 跨项目活动（或回退到本地 git log），生成结构化摘要，并通过 `opencli-adapter-author` skill 作为上层 OpenCLI 工作流来完成页面导航、表单填写与 SeaTable Slate 富文本写入后的严格校验 |
+| `weekly-report-assistant` | 自动化周报填写：通过 glab API 获取 GitLab 跨项目活动（或回退到本地 git log），生成结构化摘要，并通过 `opencli-adapter-author` skill 作为上层 OpenCLI 工作流来完成页面导航、表单填写，以及 SeaTable Slate 富文本编辑中真实踩坑后的严格校验 |
 
 ## 技能工作原理
 
