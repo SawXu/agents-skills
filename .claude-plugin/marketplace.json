@@ -12,7 +12,7 @@
   "plugins": [
     {
       "name": "weekly-report-assistant",
-      "description": "Automates weekly report (周报) operations on SeaTable. Analyzes GitLab activity (via glab) or local git commits to generate structured summaries, supports opencli-browser for navigation and verification, and documents why SeaTable Slate rich-text replacement should prefer playwright-cli.",
+      "description": "Automates weekly report (周报) operations on SeaTable. Analyzes GitLab activity (via glab) or local git commits to generate structured summaries, and relies on the opencli-adapter-author skill as the top-level OpenCLI workflow for navigation, form filling, and strict SeaTable Slate verification.",
       "source": "./",
       "strict": false,
       "skills": [
