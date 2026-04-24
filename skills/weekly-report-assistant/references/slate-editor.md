@@ -165,18 +165,34 @@ This fallback is intentionally narrow: use it for a stubborn existing `我的周
 
 ## Content Shape
 
-Keep the generated content simple so Slate is less likely to mangle it:
+Use `header_three` for project/section names and `paragraph` for work items. This matches SeaTable's "三级标题" style — visually larger and bold, clearly distinguishing sections from content.
 
-```text
-项目名称
-事项 1
-事项 2
+Slate node types supported by this editor:
 
-另一个项目
-事项 3
+| UI label | Slate `type` value |
+|----------|--------------------|
+| 段落 | `paragraph` |
+| 一级标题 | `header_one` |
+| 二级标题 | `header_two` |
+| 三级标题 | `header_three` |
+| 四级标题 | `header_four` |
+| 五级标题 | `header_five` |
+| 六级标题 | `header_six` |
+
+Example node array for a well-formatted weekly report:
+
+```javascript
+[
+  { type: 'header_three', children: [{ text: 'arcs-sdk' }] },
+  { type: 'paragraph',    children: [{ text: '合入 CherryUSB boot adb 后端，修复 SRAM 占用问题' }] },
+  { type: 'paragraph',    children: [{ text: '引入触屏 LVGL 视频播放示例' }] },
+  { type: 'paragraph',    children: [{ text: '' }] },
+  { type: 'header_three', children: [{ text: 'uboot' }] },
+  { type: 'paragraph',    children: [{ text: '新增从 PSRAM 运行 recovery runtime 支持' }] },
+]
 ```
 
-Use blank lines to separate project groups. If you need more visual hierarchy, keep it to short standalone section lines rather than Markdown syntax.
+Do not use `paragraph` for section headings — all plain paragraphs look identical and make the report hard to read.
 
 After closing the popup, the field preview should show the expected project names and work items instead of `编辑文本`.
 

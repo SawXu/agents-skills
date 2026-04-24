@@ -70,16 +70,16 @@ Do not proceed until the variable is set.
 
 ## Report Content Format
 
-SeaTable rich text should use plain paragraphs:
+Use `header_three` for project/section names and `paragraph` for work items. This produces visually distinct headings in SeaTable's Slate editor.
 
-```text
-Project/Component Name
-Completed task 1
-Completed task 2
-
-Another Component
-Task 3
-Task 4
+```javascript
+// Slate node array structure
+{ type: 'header_three', children: [{ text: 'arcs-sdk' }] }
+{ type: 'paragraph',    children: [{ text: '完成事项 1' }] }
+{ type: 'paragraph',    children: [{ text: '完成事项 2' }] }
+{ type: 'paragraph',    children: [{ text: '' }] }   // blank separator
+{ type: 'header_three', children: [{ text: 'uboot' }] }
+{ type: 'paragraph',    children: [{ text: '完成事项 3' }] }
 ```
 
-Keep items concise (one line each). Group by project, not by date. Use blank lines between groups, and do not include Markdown markers such as `###` or `-` in the final field value.
+Keep items concise (one line each). Group by project, not by date. Do not use Markdown markers such as `###` or `-` in the final field value.
