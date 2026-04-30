@@ -113,6 +113,36 @@ git log --all --author="$(git config user.name)" --since="7 days ago" \
 
 Always read the previous week's report first. Remove items that overlap with already-reported work.
 
+### Cross-Repo Submodule-Bump Deduplication
+
+When a parent-repo commit bumps a submodule pointer, the parent commit and the matching submodule commit are **the same piece of work**. Listing both inflates the report.
+
+**Rule:** if an authored commit in the parent repo modifies the submodule pointer (e.g. `system/uboot`, `soc/arcs/hal`), do not count it as an independent parent-repo work item. Fold it into the submodule's section, optionally noting the parent-side adoption (board/sample/driver glue) in the same bullet.
+
+**How to detect:** for each authored parent-repo commit, fetch its diff and look for `Subproject commit` markers, or for changes to known submodule paths.
+
+```bash
+# For each commit SHA in the parent repo, mark whether any hunk touches a submodule pointer.
+glab api "/projects/{PARENT_PROJECT_ID}/repository/commits/{SHA}/diff" \
+  | python3 -c "
+import sys, json
+diffs = json.load(sys.stdin)
+has_submod = any('Subproject commit' in (d.get('diff') or '') for d in diffs)
+only_submod = has_submod and all('Subproject commit' in (d.get('diff') or '') for d in diffs)
+print('SUBMODULE-ONLY' if only_submod else 'HAS-SUBMODULE-BUMP' if has_submod else 'INDEPENDENT')
+"
+```
+
+**Categorization:**
+
+| Category | Meaning | Where to list |
+|----------|---------|---------------|
+| `SUBMODULE-ONLY` | Parent commit only bumps the submodule pointer | Submodule section only — drop from parent |
+| `HAS-SUBMODULE-BUMP` | Parent commit changes parent files **and** bumps the submodule | Submodule section, optionally with a parent-side adoption note |
+| `INDEPENDENT` | Parent commit has no submodule-pointer change | Parent-repo section |
+
+**Edge case — incidental bumps:** when the parent commit's substantive change is unrelated to any submodule commit that week (e.g. `fix(ipclsf): handle timeout` that incidentally bumps an unrelated submodule), keep it in the parent section. The rule's purpose is to avoid double-counting the *same* work, not to attribute every incidental bump to the submodule.
+
 ## Grouping
 
 Organize by project/component (e.g., "arcs-sdk", "uboot"), not by date.

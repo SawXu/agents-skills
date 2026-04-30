@@ -50,7 +50,7 @@ Do not proceed until the variable is set.
 ## Workflow
 
 1. **Analyze recent activity** for the target week → see [git-analysis.md](references/git-analysis.md)
-2. **Deduplicate** against previous week's report content
+2. **Deduplicate** against previous week's report content **and** across parent-repo / submodule pairs (a parent commit that bumps a submodule pointer is the same work as the matching submodule commit — fold them into one bullet under the submodule section, see [git-analysis.md](references/git-analysis.md#cross-repo-submodule-bump-deduplication))
 3. **Navigate and authenticate** under the `opencli-adapter-author` workflow → see [navigation.md](references/navigation.md)
 4. **Locate** the target record or open the new-report form
 5. **Edit** using the Slate-safe OpenCLI path → see [slate-editor.md](references/slate-editor.md)
