@@ -14,7 +14,7 @@ Use this skill to turn PUBG highlight folders into concise clips of the player t
 - Exclude `淘汰画面`, `击倒画面`, `单次淘汰`, `双次淘汰`, and other `xx淘汰` files unless the user explicitly asks for them; `淘汰画面/击倒画面` are usually the killer/opponent replay perspective.
 - Sort source clips by filename; NVIDIA highlight names include timestamps, so lexical sort preserves time order.
 - For the final usable montage, keep the player's event context: default to 5 seconds before the player's knock/direct elimination plus 1 second after the event so the knock/elimination is visible.
-- Never use grayscale/death-screen frames as event evidence. If the script cannot confirm the event from the player's red bottom-center health bar or lower-screen text like `击倒了你` / `淘汰了你`, skip the clip instead of guessing.
+- Never use grayscale/death-screen frames as event evidence. Confirm events from the player's red bottom-center health bar, the fixed health bar UI disappearing and not returning, or lower-screen text like `击倒了你` / `淘汰了你`; otherwise skip the clip instead of guessing.
 - If the clip starts with the player's character already downed, skip it; the clip has already missed the "before knock" context. Also skip a direct-elimination crop if the proposed crop start is already red/downed.
 
 ## Preferred Script
@@ -65,11 +65,12 @@ The PaddleOCR script:
 The script samples each video at 10 fps and scales to 384x240 for speed.
 
 1. Detect the player's own bottom-center red knocked/eliminated health bar. This is preferred because it corresponds to the player's knock/direct elimination.
-2. For `.淘汰` clips where the red health bar is not visible, use PaddleOCR lower-screen text such as `击倒了你` / `淘汰了你`.
+2. For direct elimination/wipe cases where no red bar appears, detect the fixed bottom-center health bar UI disappearing after it was previously visible and not returning.
 3. Do not inspect the left team list for red bars; teammates create false positives.
 4. If the player is already downed at the source start or at the proposed crop start, skip the clip instead of keeping post-knock footage.
-5. Do not use grayscale, death-screen color, or "health bar disappeared" heuristics. When neither red health bar nor self-event text is found, mark the clip skipped/unverified.
-6. If the event happens before 5 seconds into the source clip, keep only from the start through the event plus the aftermath; do not include unrelated post-event footage just to force a 5-second clip.
+5. For `.淘汰` clips where health bar evidence is not visible, use PaddleOCR lower-screen text such as `击倒了你` / `淘汰了你`.
+6. Do not use grayscale or death-screen color heuristics. When neither health bar evidence nor self-event text is found, mark the clip skipped/unverified.
+7. If the event happens before 5 seconds into the source clip, keep only from the start through the event plus the aftermath; do not include unrelated post-event footage just to force a 5-second clip.
 
 ## Manual QA and Corrections
 
@@ -95,5 +96,5 @@ After processing, report:
 - Single-clip output directory.
 - CSV detection record path.
 - Final duration and approximate size.
-- Counts by detection method, especially `own-knock-or-elim-red-healthbar` and `paddle-strict-self-text`.
+- Counts by detection method, especially `own-knock-or-elim-red-healthbar`, `direct-elim-healthbar-disappeared`, and `paddle-strict-self-text`.
 - Confirm that no `direct-elim-grayscale`, grayscale, or unverified-tail methods were included.

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Trim PUBG highlights to confirmed player knock/elimination moments.
 
-This health-bar pass only trusts the player's bottom-center red health bar.
-It deliberately does not infer events from grayscale/death screens or a missing
-health bar because those heuristics can cut unrelated footage.
+This health-bar pass only trusts the player's bottom-center health bar: a
+sustained red bar for knock/down, or the fixed health bar UI disappearing and
+not returning for direct elimination. It deliberately does not infer events
+from grayscale/death-screen color because that can cut unrelated footage.
 """
 from __future__ import annotations
 
@@ -128,7 +129,27 @@ def detect_event(path: Path, ffmpeg: str, ffprobe: str) -> tuple[float, float | 
         if sum(1 for u in red_times if t <= u < t + 1.1) >= 9:
             return dur, t, "own-knock-or-elim-red-healthbar"
 
-    return dur, None, "skipped-red-healthbar-not-found"
+    # Direct death/elimination: the fixed health bar UI disappears after it was
+    # previously visible, and never comes back. This uses UI presence only, not
+    # grayscale/death-screen color.
+    seen_health = False
+    for i, (t, state) in enumerate(states):
+        if state in {"present", "red"}:
+            seen_health = True
+            continue
+        if not seen_health:
+            continue
+        window = [s for u, s in states[i:] if t <= u < t + 1.5]
+        later = [s for _, s in states[i:]]
+        if len(window) >= 12 and all(s == "absent" for s in window) and not any(s in {"present", "red"} for s in later):
+            trim_start = max(0.0, t - 5.0)
+            start_window = [s for u, s in states if trim_start <= u < trim_start + 1.0]
+            starts_already_downed = bool(start_window) and sum(1 for s in start_window if s == "red") / len(start_window) > 0.45
+            if starts_already_downed:
+                return dur, None, "skipped-trim-starts-already-downed"
+            return dur, t, "direct-elim-healthbar-disappeared"
+
+    return dur, None, "skipped-healthbar-evidence-not-found"
 
 
 def trim_clip(src: Path, out: Path, start: float, length: float, ffmpeg: str) -> None:
