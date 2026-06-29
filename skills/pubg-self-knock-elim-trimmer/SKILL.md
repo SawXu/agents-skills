@@ -54,6 +54,7 @@ The PaddleOCR script:
 
 - Requires Python with `paddlepaddle==3.2.2`, `paddleocr==3.7.0`, and `opencv-contrib-python`.
 - Uses PaddleOCR only as final truth for `击倒了你` / `淘汰了你`; candidate CSV files are only scan hints.
+- Skips clips whose opening already shows the player's fixed bottom-center health bar in the red downed state, unless `--allow-starts-downed` is passed.
 - Continues scanning if it sees non-self text like `你用...击倒了xxx`, so later true self-knock events are not skipped.
 - Scans common PUBG highlight windows first (`28:36`, `44:52`) and then falls back to a full scan unless `--no-full-scan` is passed.
 - Writes a CSV and `summary.json` with included/skipped clips, OCR text, event seconds, keep ranges, and output paths.
@@ -93,5 +94,3 @@ After processing, report:
 - CSV detection record path.
 - Final duration and approximate size.
 - Counts by detection method, especially `own-knock-or-elim-red-healthbar` vs `direct-elim-grayscale`.
-
-
