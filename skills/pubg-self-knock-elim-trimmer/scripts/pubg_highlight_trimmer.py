@@ -59,7 +59,7 @@ def iter_source_files(folder: Path, include_view_replays: bool) -> list[Path]:
 
 
 def health_state(buf: bytes) -> str:
-    red = white = yellow = blue = bright = total = 0
+    red = red_soft = white = yellow = blue = bright = total = 0
     for y in range(HEALTH_Y0, HEALTH_Y1):
         base = y * W * 3
         for x in range(HEALTH_X0, HEALTH_X1):
@@ -68,6 +68,8 @@ def health_state(buf: bytes) -> str:
             mx, mn = max(r, g, b), min(r, g, b)
             if r > 145 and g < 95 and b < 95:
                 red += 1
+            if r > 95 and r > g + 18 and r > b + 18 and g < 140 and b < 140:
+                red_soft += 1
             if r > 185 and g > 185 and b > 185 and mx - mn < 45:
                 white += 1
             if r > 165 and g > 125 and b < 145 and r >= g:
@@ -78,13 +80,14 @@ def health_state(buf: bytes) -> str:
                 bright += 1
             total += 1
     red_ratio = red / total
+    red_soft_ratio = red_soft / total
     white_ratio = white / total
     yellow_ratio = yellow / total
     blue_ratio = blue / total
     bright_ratio = bright / total
     # Real downed/eliminated bar is a sustained, broad red bar. Short damage flashes
     # or blue-zone overlay can tint the ROI red, so keep this threshold conservative.
-    if red_ratio > 0.075:
+    if red_ratio > 0.075 or (red_soft_ratio > 0.055 and yellow_ratio < 0.02 and bright_ratio < 0.05):
         return "red"
     # Alive health can be white, pale yellow, blue-zone tinted, or transparent.
     if white_ratio > 0.018 or yellow_ratio > 0.018 or blue_ratio > 0.018 or bright_ratio > 0.045:
