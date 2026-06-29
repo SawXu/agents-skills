@@ -42,7 +42,7 @@ Claude Code 用户也可通过 Marketplace 安装：
 | 技能 | 说明 |
 | ---- | ---- |
 | `weekly-report-assistant` | 自动化周报填写：通过 glab API 获取 GitLab 跨项目活动（或回退到本地 git log），生成适合 SeaTable Slate 的普通富文本摘要，并通过 `opencli-adapter-author` skill 作为上层 OpenCLI 工作流来完成页面导航、表单填写、严格校验，以及顽固 Slate 回写失败时的降级排障 |
-| `pubg-self-knock-elim-trimmer` | 处理 PUBG/NVIDIA Highlights 中“自己被击倒或被淘汰”的 `.淘汰.DVR.mp4`，排除 `淘汰画面/击倒画面` 等对手回放，自动识别自身倒地红血条或直接淘汰灰屏，保留事件前 5 秒加事件后 1 秒并按时间顺序合成 |
+| `pubg-self-knock-elim-trimmer` | 处理 PUBG/NVIDIA Highlights 中“自己被击倒或被淘汰”的 `.淘汰.DVR.mp4`，排除 `淘汰画面/击倒画面` 等对手回放，可用 PaddleOCR 识别下方 `击倒了你/淘汰了你` 文字或用血条启发式定位，保留事件前后片段并按时间顺序合成 |
 
 ## 技能工作原理
 

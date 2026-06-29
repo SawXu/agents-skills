@@ -34,6 +34,30 @@ python skills/pubg-self-knock-elim-trimmer/scripts/pubg_highlight_trimmer.py "C:
 
 The script finds `ffmpeg.exe`/`ffprobe.exe` from PATH or common Shutter Encoder locations.
 
+## PaddleOCR Text Script
+
+Use `scripts/pubg_paddleocr_text_trimmer.py` when the desired cut point is the lower-screen kill text such as `xxx击倒了你` / `xxx淘汰了你`:
+
+```powershell
+python skills/pubg-self-knock-elim-trimmer/scripts/pubg_paddleocr_text_trimmer.py "C:\path\to\淘汰" --seconds-before 4 --seconds-after 1
+```
+
+Useful options:
+
+```powershell
+python skills/pubg-self-knock-elim-trimmer/scripts/pubg_paddleocr_text_trimmer.py "C:\path\to\淘汰" --candidate-csv "C:\path\to\检测记录.csv"
+python skills/pubg-self-knock-elim-trimmer/scripts/pubg_paddleocr_text_trimmer.py "C:\path\to\淘汰" --dry-run
+python skills/pubg-self-knock-elim-trimmer/scripts/pubg_paddleocr_text_trimmer.py "C:\path\to\淘汰" --priority-window 28:36 --priority-window 44:52
+```
+
+The PaddleOCR script:
+
+- Requires Python with `paddlepaddle==3.2.2`, `paddleocr==3.7.0`, and `opencv-contrib-python`.
+- Uses PaddleOCR only as final truth for `击倒了你` / `淘汰了你`; candidate CSV files are only scan hints.
+- Continues scanning if it sees non-self text like `你用...击倒了xxx`, so later true self-knock events are not skipped.
+- Scans common PUBG highlight windows first (`28:36`, `44:52`) and then falls back to a full scan unless `--no-full-scan` is passed.
+- Writes a CSV and `summary.json` with included/skipped clips, OCR text, event seconds, keep ranges, and output paths.
+
 ## Detection Heuristic
 
 The script samples each video at 10 fps and scales to 384x240 for speed.
