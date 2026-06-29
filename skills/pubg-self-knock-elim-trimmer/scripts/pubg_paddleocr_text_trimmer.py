@@ -318,33 +318,38 @@ def build_scan_times(
     return ordered
 
 
-def build_candidate_scan_times(
+def build_text_priority_scan_times(
     duration: float,
     candidate_times: list[float],
+    priority_windows: list[tuple[float, float]],
     scan_start: float,
     scan_end: float | None,
+    coarse_step: float,
+    full_scan: bool,
     lookback: float,
     lookahead: float,
     step: float,
 ) -> list[float]:
-    """Scan candidate hint windows from earliest to latest to avoid late persistent text."""
+    """Scan self-event text first; health-bar/candidate times only add scan windows."""
     end_limit = min(duration, scan_end if scan_end is not None else duration)
-    times: list[float] = []
+    times: set[int] = set()
+
+    if full_scan:
+        times.update(int(round(t * 1000)) for t in time_range(scan_start, end_limit, coarse_step))
+
+    for start, stop in priority_windows:
+        lo = max(scan_start, 0.0, start)
+        hi = min(end_limit, stop)
+        if hi >= lo:
+            times.update(int(round(t * 1000)) for t in time_range(lo, hi, step))
+
     for candidate in candidate_times:
         lo = max(scan_start, 0.0, candidate - lookback)
         hi = min(end_limit, candidate + lookahead)
         if hi >= lo:
-            times.extend(time_range(lo, hi, step))
+            times.update(int(round(t * 1000)) for t in time_range(lo, hi, step))
 
-    seen: set[int] = set()
-    ordered: list[float] = []
-    for t in times:
-        key = int(round(t * 1000))
-        if key in seen:
-            continue
-        seen.add(key)
-        ordered.append(t)
-    return ordered
+    return [key / 1000 for key in sorted(times)]
 
 
 def ocr_at(
@@ -400,13 +405,28 @@ def refine_event(
     hi = min(duration, coarse_sec + refine_after)
     sampled = 0
     best: tuple[float, OcrResult] | None = None
-    for t in time_range(lo, hi, refine_step):
+
+    rough_step = max(refine_step, 0.5)
+    rough_hit: tuple[float, OcrResult] | None = None
+    for t in time_range(lo, hi, rough_step):
         sampled += 1
         result = ocr_at(cap, ocr, t, roi, ocr_width)
         if classify_self_text(result.text):
-            return t, result, sampled
+            rough_hit = (t, result)
+            break
         if result.text and best is None:
             best = (t, result)
+    if rough_hit:
+        fine_lo = max(lo, rough_hit[0] - rough_step)
+        fine_hi = min(hi, rough_hit[0] + refine_step)
+        for t in time_range(fine_lo, fine_hi, refine_step):
+            sampled += 1
+            result = ocr_at(cap, ocr, t, roi, ocr_width)
+            if classify_self_text(result.text):
+                return t, result, sampled
+            if result.text and best is None:
+                best = (t, result)
+        return rough_hit[0], rough_hit[1], sampled
     if best:
         return best[0], best[1], sampled
     return coarse_sec, OcrResult("", "", 0.0, "paddle-refine-missed"), sampled
@@ -426,52 +446,21 @@ def detect_event(
     last_scores = ""
     last_method = "not-scanned"
     try:
-        # Candidate CSV times are only hints. A health-bar disappearance can be
-        # a couple seconds later than the "淘汰了你" text, so scan backward from
-        # each candidate and keep the earliest confirmed self-event text.
-        for sec in build_candidate_scan_times(
+        # Text evidence is the top priority. "击倒了你"/"淘汰了你"/"你在安全区外倒地了"
+        # stays on screen for several seconds, so coarse-scan text first and
+        # then refine backward to the first frame where the text appears.
+        for sec in build_text_priority_scan_times(
             duration,
             candidate_times,
-            args.scan_start,
-            args.scan_end,
-            args.candidate_lookback,
-            args.candidate_lookahead,
-            args.candidate_step,
-        ):
-            sampled_count += 1
-            result = ocr_at(cap, ocr, sec, args.roi, args.ocr_width)
-            total_ocr_seconds += result.seconds
-            if result.text:
-                last_text, last_scores, last_method = result.text, result.scores, result.method
-            if classify_self_text(result.text):
-                if not args.refine_candidates:
-                    return EventResult(sec, result.method, result.text, result.scores, total_ocr_seconds, sampled_count)
-                event_sec, refined, refined_count = refine_event(
-                    cap,
-                    ocr,
-                    sec,
-                    duration,
-                    args.roi,
-                    args.ocr_width,
-                    args.refine_before,
-                    args.refine_after,
-                    args.refine_step,
-                )
-                sampled_count += refined_count
-                total_ocr_seconds += refined.seconds
-                method = classify_self_text(refined.text) or result.method
-                return EventResult(event_sec, method, refined.text or result.text, refined.scores or result.scores, total_ocr_seconds, sampled_count)
-
-        scan_times = build_scan_times(
-            duration,
-            [],
             args.priority_window,
             args.scan_start,
             args.scan_end,
             args.coarse_step,
             not args.no_full_scan,
-        )
-        for sec in scan_times:
+            args.candidate_lookback,
+            args.candidate_lookahead,
+            args.candidate_step,
+        ):
             sampled_count += 1
             result = ocr_at(cap, ocr, sec, args.roi, args.ocr_width)
             total_ocr_seconds += result.seconds
@@ -595,14 +584,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seconds-after", type=float, default=1.0)
     parser.add_argument("--include-view-replays", action="store_true")
     parser.add_argument("--candidate-csv", type=Path, default=None, help="Optional prior OCR/healthbar CSV; only used as scan hints, not as final truth")
-    parser.add_argument("--priority-window", type=parse_window, action="append", default=[(28.0, 36.0), (44.0, 52.0)], help="Scan this window first; repeatable, default 28:36 and 44:52")
+    parser.add_argument("--priority-window", type=parse_window, action="append", default=[(28.0, 42.0), (44.0, 52.0)], help="Scan this window first; repeatable, default 28:42 and 44:52")
     parser.add_argument("--scan-start", type=float, default=0.0)
     parser.add_argument("--scan-end", type=float, default=None)
-    parser.add_argument("--coarse-step", type=float, default=1.0)
+    parser.add_argument("--coarse-step", type=float, default=2.0)
     parser.add_argument("--candidate-lookback", type=float, default=8.0, help="Scan this many seconds before candidate CSV hints to find the first persistent self text")
     parser.add_argument("--candidate-lookahead", type=float, default=0.5, help="Scan this many seconds after candidate CSV hints")
-    parser.add_argument("--candidate-step", type=float, default=0.5, help="OCR step for candidate hint windows")
-    parser.add_argument("--refine-before", type=float, default=1.2)
+    parser.add_argument("--candidate-step", type=float, default=2.0, help="OCR step for candidate hint windows")
+    parser.add_argument("--refine-before", type=float, default=6.0)
     parser.add_argument("--refine-after", type=float, default=0.4)
     parser.add_argument("--refine-step", type=float, default=0.1)
     parser.add_argument("--refine-candidates", action="store_true", help="Refine candidate CSV hits with PaddleOCR; slower")
