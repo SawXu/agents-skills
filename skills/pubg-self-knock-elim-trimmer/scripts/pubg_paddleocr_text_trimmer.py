@@ -36,6 +36,12 @@ except Exception as exc:  # pragma: no cover - useful when run from wrong Python
 SELF_STRICT_RE = re.compile(r"(击倒了你|淘汰了你)")
 SELF_FUZZY_RE = re.compile(r"(击倒.{0,2}你|淘.{0,2}了?你|倒了你)")
 
+# Scaled fixed player-health-bar ROI. This mirrors pubg_highlight_trimmer.py and
+# is used only to reject clips that already start in the downed red-bar state.
+HEALTH_W, HEALTH_H = 384, 240
+HEALTH_X0, HEALTH_X1 = 145, 245
+HEALTH_Y0, HEALTH_Y1 = 225, 238
+
 
 @dataclass
 class OcrResult:
@@ -122,6 +128,95 @@ def duration_sec(path: Path, ffprobe: str) -> float:
             ]
         )
     )
+
+
+def health_state(buf: bytes) -> str:
+    red = red_soft = white = yellow = blue = bright = total = 0
+    for y in range(HEALTH_Y0, HEALTH_Y1):
+        base = y * HEALTH_W * 3
+        for x in range(HEALTH_X0, HEALTH_X1):
+            off = base + x * 3
+            r, g, b = buf[off], buf[off + 1], buf[off + 2]
+            mx, mn = max(r, g, b), min(r, g, b)
+            if r > 145 and g < 95 and b < 95:
+                red += 1
+            if r > 95 and r > g + 18 and r > b + 18 and g < 140 and b < 140:
+                red_soft += 1
+            if r > 185 and g > 185 and b > 185 and mx - mn < 45:
+                white += 1
+            if r > 165 and g > 125 and b < 145 and r >= g:
+                yellow += 1
+            if b > 130 and g > 80 and r < 130:
+                blue += 1
+            if mx > 160 and mx - mn < 95:
+                bright += 1
+            total += 1
+    red_ratio = red / total
+    red_soft_ratio = red_soft / total
+    white_ratio = white / total
+    yellow_ratio = yellow / total
+    blue_ratio = blue / total
+    bright_ratio = bright / total
+    # Strong red catches normal downed bars. The muted-red branch catches gray
+    # death-screen starts where the red bar is desaturated but still visible.
+    if red_ratio > 0.075 or (red_soft_ratio > 0.055 and yellow_ratio < 0.02 and bright_ratio < 0.05):
+        return "red"
+    if white_ratio > 0.018 or yellow_ratio > 0.018 or blue_ratio > 0.018 or bright_ratio > 0.045:
+        return "present"
+    return "absent"
+
+
+def opening_already_downed(
+    path: Path,
+    ffmpeg: str,
+    check_start: float,
+    check_end: float,
+    fps: float,
+    red_threshold: float,
+) -> tuple[bool, float, int]:
+    proc = subprocess.Popen(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(path),
+            "-t",
+            f"{check_end:.3f}",
+            "-vf",
+            f"fps={fps},scale={HEALTH_W}:{HEALTH_H}",
+            "-pix_fmt",
+            "rgb24",
+            "-f",
+            "rawvideo",
+            "-",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    frame_size = HEALTH_W * HEALTH_H * 3
+    idx = 0
+    states: list[str] = []
+    try:
+        while True:
+            buf = proc.stdout.read(frame_size) if proc.stdout else b""
+            if len(buf) < frame_size:
+                break
+            t = idx / fps
+            idx += 1
+            if check_start <= t < check_end:
+                states.append(health_state(buf))
+    finally:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+    if not states:
+        return False, 0.0, 0
+    red_ratio = sum(1 for state in states if state == "red") / len(states)
+    return red_ratio >= red_threshold, red_ratio, len(states)
 
 
 def iter_source_files(folder: Path, include_view_replays: bool) -> list[Path]:
@@ -473,6 +568,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--refine-after", type=float, default=0.4)
     parser.add_argument("--refine-step", type=float, default=0.1)
     parser.add_argument("--refine-candidates", action="store_true", help="Refine candidate CSV hits with PaddleOCR; slower")
+    parser.add_argument("--allow-starts-downed", action="store_true", help="Do not skip clips whose opening already has a red downed health bar")
+    parser.add_argument("--opening-check-start", type=float, default=0.5)
+    parser.add_argument("--opening-check-end", type=float, default=3.0)
+    parser.add_argument("--opening-check-fps", type=float, default=5.0)
+    parser.add_argument("--opening-red-threshold", type=float, default=0.65)
     parser.add_argument("--no-full-scan", action="store_true", help="Only scan candidate/priority windows; faster but can miss unusual event times")
     parser.add_argument("--roi", type=parse_roi, default=(0.22, 0.62, 0.78, 0.84), help="OCR crop ratios x1,y1,x2,y2")
     parser.add_argument("--ocr-width", type=int, default=1152, help="Downscale OCR ROI to this width; 0 disables")
@@ -513,6 +613,45 @@ def main(argv: list[str] | None = None) -> int:
 
     for idx, src in enumerate(files, 1):
         dur = duration_sec(src, ffprobe)
+        opening_red_ratio = 0.0
+        opening_samples = 0
+        if not args.allow_starts_downed:
+            starts_downed, opening_red_ratio, opening_samples = opening_already_downed(
+                src,
+                ffmpeg,
+                args.opening_check_start,
+                min(args.opening_check_end, dur),
+                args.opening_check_fps,
+                args.opening_red_threshold,
+            )
+            if starts_downed:
+                method = "skipped-starts-already-downed"
+                methods[method] += 1
+                print(
+                    f"[{idx:02d}/{len(files)}] SKIP {method} opening_red={opening_red_ratio:.3f} samples={opening_samples} | {src.name}",
+                    flush=True,
+                )
+                records.append(
+                    {
+                        "Index": str(idx),
+                        "Name": src.name,
+                        "DurationSec": f"{dur:.3f}",
+                        "Status": "skipped",
+                        "EventSec": "",
+                        "KeepStartSec": "",
+                        "KeepEndSec": "",
+                        "KeepDurationSec": "",
+                        "Method": method,
+                        "PaddleText": "",
+                        "PaddleScores": "",
+                        "OpeningRedRatio": f"{opening_red_ratio:.3f}",
+                        "OcrSeconds": "0.000",
+                        "SampledFrames": str(opening_samples),
+                        "Output": "",
+                    }
+                )
+                continue
+
         event = detect_event(src, ocr, dur, candidates.get(src.name, []), args)
         event_sec = event.event_sec
         if event_sec is None:
@@ -531,6 +670,7 @@ def main(argv: list[str] | None = None) -> int:
                     "Method": event.method,
                     "PaddleText": event.text,
                     "PaddleScores": event.scores,
+                    "OpeningRedRatio": f"{opening_red_ratio:.3f}",
                     "OcrSeconds": f"{event.ocr_seconds:.3f}",
                     "SampledFrames": str(event.sampled_count),
                     "Output": "",
@@ -567,6 +707,7 @@ def main(argv: list[str] | None = None) -> int:
                 "Method": event.method,
                 "PaddleText": event.text,
                 "PaddleScores": event.scores,
+                "OpeningRedRatio": f"{opening_red_ratio:.3f}",
                 "OcrSeconds": f"{event.ocr_seconds:.3f}",
                 "SampledFrames": str(event.sampled_count),
                 "Output": output,
