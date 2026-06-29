@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Trim PUBG highlights to the player's own knock/elimination moments."""
+"""Trim PUBG highlights to confirmed player knock/elimination moments.
+
+This health-bar pass only trusts the player's bottom-center red health bar.
+It deliberately does not infer events from grayscale/death screens or a missing
+health bar because those heuristics can cut unrelated footage.
+"""
 from __future__ import annotations
 
 import argparse
@@ -45,9 +50,9 @@ def iter_source_files(folder: Path, include_view_replays: bool) -> list[Path]:
     files: list[Path] = []
     for path in sorted(folder.glob("*.mp4")):
         if include_view_replays:
-            if "淘汰" in path.name and path.name.endswith(".DVR.mp4"):
+            if ("淘汰" in path.name or "击倒" in path.name) and re.search(r"\.DVR(?:_\d+)?\.mp4$", path.name):
                 files.append(path)
-        elif re.search(r"\.淘汰\.DVR\.mp4$", path.name):
+        elif re.search(r"\.(?:被击倒|淘汰)\.DVR(?:_\d+)?\.mp4$", path.name):
             files.append(path)
     return files
 
@@ -123,27 +128,7 @@ def detect_event(path: Path, ffmpeg: str, ffprobe: str) -> tuple[float, float | 
         if sum(1 for u in red_times if t <= u < t + 1.1) >= 9:
             return dur, t, "own-knock-or-elim-red-healthbar"
 
-    # Direct death/elimination: the fixed health bar UI disappears after previously being present.
-    seen_health = False
-    for i, (t, state) in enumerate(states):
-        if state in {"present", "red"}:
-            seen_health = True
-            continue
-        if not seen_health:
-            continue
-        # Treat disappearance as death only if the health UI does not come back.
-        # This avoids false positives from momentary occlusion or incorrect ROI hits.
-        window = [s for u, s in states[i:] if t <= u < t + 1.5]
-        later = [s for _, s in states[i:]]
-        if len(window) >= 12 and all(s == "absent" for s in window) and not any(s in {"present", "red"} for s in later):
-            trim_start = max(0.0, t - 5.0)
-            start_window = [s for u, s in states if trim_start <= u < trim_start + 1.0]
-            starts_already_downed = bool(start_window) and sum(1 for s in start_window if s == "red") / len(start_window) > 0.45
-            if starts_already_downed:
-                return dur, None, "skipped-trim-starts-already-downed"
-            return dur, t, "direct-elim-healthbar-disappeared"
-
-    return dur, None, "skipped-unverified-healthbar-not-found"
+    return dur, None, "skipped-red-healthbar-not-found"
 
 
 def trim_clip(src: Path, out: Path, start: float, length: float, ffmpeg: str) -> None:
@@ -180,7 +165,6 @@ def main() -> int:
     parser.add_argument("--seconds-before", type=float, default=5.0)
     parser.add_argument("--seconds-after", type=float, default=1.0, help="Keep this much after event so the knock/elimination is visible")
     parser.add_argument("--include-view-replays", action="store_true", help="Include 淘汰画面/击倒画面 style replay files; off by default")
-    parser.add_argument("--include-unverified", action="store_true", help="Also trim clips where no player knock/elimination event is confidently detected; off by default")
     parser.add_argument("--ffmpeg", default=None)
     parser.add_argument("--ffprobe", default=None)
     args = parser.parse_args()
@@ -203,13 +187,10 @@ def main() -> int:
     for i, src in enumerate(files, 1):
         dur, event, method = detect_event(src, ffmpeg, ffprobe)
         out = outdir / f"{i:03d}_{src.name}"
-        if event is None and not args.include_unverified:
+        if event is None:
             print(f"[{i:02d}/{len(files)}] SKIP {method} | {src.name}", flush=True)
             rows.append({"Index": i, "Name": src.name, "DurationSec": f"{dur:.3f}", "EventSec": "", "KeepStartSec": "", "KeepEndSec": "", "KeepDurationSec": "", "Method": method, "Output": ""})
             continue
-        if event is None:
-            event = max(args.seconds_before, dur - args.seconds_after)
-            method = "included-unverified-tail"
         start = max(0.0, event - args.seconds_before)
         keep = min(dur - start, (event - start) + args.seconds_after)
         print(f"[{i:02d}/{len(files)}] {method} {start:.2f}-{start + keep:.2f} | {src.name}", flush=True)
@@ -223,7 +204,7 @@ def main() -> int:
         writer.writeheader()
         writer.writerows(rows)
     if not clips:
-        raise SystemExit("No confident clips were produced; inspect the CSV and rerun with --include-unverified only if desired")
+        raise SystemExit("No confident clips were produced; inspect the CSV or run the PaddleOCR text trimmer for self-event text")
     concat_clips(clips, final, ffmpeg)
     final_dur = duration(final, ffprobe)
     methods = dict(Counter(row["Method"] for row in rows))

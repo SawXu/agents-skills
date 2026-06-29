@@ -157,8 +157,8 @@ def health_state(buf: bytes) -> str:
     yellow_ratio = yellow / total
     blue_ratio = blue / total
     bright_ratio = bright / total
-    # Strong red catches normal downed bars. The muted-red branch catches gray
-    # death-screen starts where the red bar is desaturated but still visible.
+    # Strong red catches normal downed bars. The muted-red branch catches
+    # low-saturation starts where the red bar itself is still visible.
     if red_ratio > 0.075 or (red_soft_ratio > 0.055 and yellow_ratio < 0.02 and bright_ratio < 0.05):
         return "red"
     if white_ratio > 0.018 or yellow_ratio > 0.018 or blue_ratio > 0.018 or bright_ratio > 0.045:
@@ -224,9 +224,9 @@ def iter_source_files(folder: Path, include_view_replays: bool) -> list[Path]:
     for path in sorted(folder.glob("*.mp4")):
         name = path.name
         if include_view_replays:
-            if "淘汰" in name and name.endswith(".DVR.mp4"):
+            if ("淘汰" in name or "击倒" in name) and re.search(r"\.DVR(?:_\d+)?\.mp4$", name):
                 files.append(path)
-        elif re.search(r"\.淘汰\.DVR\.mp4$", name):
+        elif re.search(r"\.(?:被击倒|淘汰)\.DVR(?:_\d+)?\.mp4$", name):
             files.append(path)
     return files
 
@@ -591,7 +591,7 @@ def main(argv: list[str] | None = None) -> int:
     folder = args.folder
     files = iter_source_files(folder, args.include_view_replays)
     if not files:
-        raise SystemExit("No matching .淘汰.DVR.mp4 source files found")
+        raise SystemExit("No matching .被击倒.DVR*.mp4 or .淘汰.DVR*.mp4 source files found")
 
     outdir = args.output_dir or folder / "被击倒或淘汰前4秒_PaddleOCR自动"
     final = args.final or folder / "淘汰_被击倒或淘汰前4秒_PaddleOCR自动合成.mp4"
