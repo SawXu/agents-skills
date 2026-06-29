@@ -315,6 +315,35 @@ def build_scan_times(
     return ordered
 
 
+def build_candidate_scan_times(
+    duration: float,
+    candidate_times: list[float],
+    scan_start: float,
+    scan_end: float | None,
+    lookback: float,
+    lookahead: float,
+    step: float,
+) -> list[float]:
+    """Scan candidate hint windows from earliest to latest to avoid late persistent text."""
+    end_limit = min(duration, scan_end if scan_end is not None else duration)
+    times: list[float] = []
+    for candidate in candidate_times:
+        lo = max(scan_start, 0.0, candidate - lookback)
+        hi = min(end_limit, candidate + lookahead)
+        if hi >= lo:
+            times.extend(time_range(lo, hi, step))
+
+    seen: set[int] = set()
+    ordered: list[float] = []
+    for t in times:
+        key = int(round(t * 1000))
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(t)
+    return ordered
+
+
 def ocr_at(
     cap: cv2.VideoCapture,
     ocr: PaddleOCR,
@@ -394,38 +423,41 @@ def detect_event(
     last_scores = ""
     last_method = "not-scanned"
     try:
-        # Candidate CSV times are only hints. If PaddleOCR confirms a self-event
-        # at the hinted time, keep that time directly for speed; if it is a
-        # non-self message, continue scanning later windows instead of skipping.
-        for candidate in candidate_times:
-            for sec in [candidate, candidate - 0.5, candidate + 0.5, candidate - 1.0, candidate + 1.0]:
-                if sec < args.scan_start or sec < 0 or sec > duration:
-                    continue
-                if args.scan_end is not None and sec > args.scan_end:
-                    continue
-                sampled_count += 1
-                result = ocr_at(cap, ocr, sec, args.roi, args.ocr_width)
-                total_ocr_seconds += result.seconds
-                if result.text:
-                    last_text, last_scores, last_method = result.text, result.scores, result.method
-                if classify_self_text(result.text):
-                    if not args.refine_candidates:
-                        return EventResult(sec, result.method, result.text, result.scores, total_ocr_seconds, sampled_count)
-                    event_sec, refined, refined_count = refine_event(
-                        cap,
-                        ocr,
-                        sec,
-                        duration,
-                        args.roi,
-                        args.ocr_width,
-                        args.refine_before,
-                        args.refine_after,
-                        args.refine_step,
-                    )
-                    sampled_count += refined_count
-                    total_ocr_seconds += refined.seconds
-                    method = classify_self_text(refined.text) or result.method
-                    return EventResult(event_sec, method, refined.text or result.text, refined.scores or result.scores, total_ocr_seconds, sampled_count)
+        # Candidate CSV times are only hints. A health-bar disappearance can be
+        # a couple seconds later than the "淘汰了你" text, so scan backward from
+        # each candidate and keep the earliest confirmed self-event text.
+        for sec in build_candidate_scan_times(
+            duration,
+            candidate_times,
+            args.scan_start,
+            args.scan_end,
+            args.candidate_lookback,
+            args.candidate_lookahead,
+            args.candidate_step,
+        ):
+            sampled_count += 1
+            result = ocr_at(cap, ocr, sec, args.roi, args.ocr_width)
+            total_ocr_seconds += result.seconds
+            if result.text:
+                last_text, last_scores, last_method = result.text, result.scores, result.method
+            if classify_self_text(result.text):
+                if not args.refine_candidates:
+                    return EventResult(sec, result.method, result.text, result.scores, total_ocr_seconds, sampled_count)
+                event_sec, refined, refined_count = refine_event(
+                    cap,
+                    ocr,
+                    sec,
+                    duration,
+                    args.roi,
+                    args.ocr_width,
+                    args.refine_before,
+                    args.refine_after,
+                    args.refine_step,
+                )
+                sampled_count += refined_count
+                total_ocr_seconds += refined.seconds
+                method = classify_self_text(refined.text) or result.method
+                return EventResult(event_sec, method, refined.text or result.text, refined.scores or result.scores, total_ocr_seconds, sampled_count)
 
         scan_times = build_scan_times(
             duration,
@@ -564,6 +596,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scan-start", type=float, default=0.0)
     parser.add_argument("--scan-end", type=float, default=None)
     parser.add_argument("--coarse-step", type=float, default=1.0)
+    parser.add_argument("--candidate-lookback", type=float, default=4.0, help="Scan this many seconds before candidate CSV hints to find the first persistent self text")
+    parser.add_argument("--candidate-lookahead", type=float, default=0.5, help="Scan this many seconds after candidate CSV hints")
+    parser.add_argument("--candidate-step", type=float, default=0.5, help="OCR step for candidate hint windows")
     parser.add_argument("--refine-before", type=float, default=1.2)
     parser.add_argument("--refine-after", type=float, default=0.4)
     parser.add_argument("--refine-step", type=float, default=0.1)

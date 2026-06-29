@@ -16,6 +16,7 @@ Use this skill to turn PUBG highlight folders into concise clips of the player t
 - For the final usable montage, keep the player's event context: default to 5 seconds before the player's knock/direct elimination plus 1 second after the event so the knock/elimination is visible.
 - Never use grayscale/death-screen frames as event evidence. Confirm events from the player's red bottom-center health bar, the fixed health bar UI disappearing and not returning, or lower-screen text like `击倒了你` / `淘汰了你`; otherwise skip the clip instead of guessing.
 - If the clip starts with the player's character already downed, including a red downed bar that is steadily shrinking or gray/desaturated footage where the red downed bar is muted, skip it; the clip has already missed the "before knock" context. Muted/desaturated red bars and decreasing red bars are only for skip checks, not event positioning, so alive low-health bars do not create false knock events.
+- When `xx淘汰了你` / `xx击倒了你` text is visible around a health-bar disappearance, use the first confirmed text frame as the event time. Health-bar UI disappearance can lag the kill text by 2+ seconds because post-death UI can occupy the same bottom-center area; do not let that late disappearance extend the clip beyond text + `--seconds-after`.
 
 ## Preferred Script
 
@@ -55,6 +56,7 @@ The PaddleOCR script:
 
 - Requires Python with `paddlepaddle==3.2.2`, `paddleocr==3.7.0`, and `opencv-contrib-python`.
 - Uses PaddleOCR only as final truth for `击倒了你` / `淘汰了你`; candidate CSV files are only scan hints.
+- Scans candidate CSV hint windows from earliest to latest with a default 4-second lookback so persistent `淘汰了你` text is anchored at its first appearance, not at a later health-bar-disappearance hint.
 - Skips clips whose opening already shows the player's fixed bottom-center health bar in the red downed state, unless `--allow-starts-downed` is passed.
 - Continues scanning if it sees non-self text like `你用...击倒了xxx`, so later true self-knock events are not skipped.
 - Scans common PUBG highlight windows first (`28:36`, `44:52`) and then falls back to a full scan unless `--no-full-scan` is passed.
@@ -65,7 +67,7 @@ The PaddleOCR script:
 The script samples each video at 10 fps and scales to 384x240 for speed.
 
 1. Detect the player's own bottom-center red knocked/eliminated health bar. This is preferred because it corresponds to the player's knock/direct elimination.
-2. For direct elimination/wipe cases where no red bar appears, detect the fixed bottom-center health bar UI disappearing after it was previously visible and not returning.
+2. For direct elimination/wipe cases where no red bar appears, detect the fixed bottom-center health bar UI disappearing after it was previously visible and not returning. Treat this as a provisional event if self-event OCR text is available nearby; snap to the first `淘汰了你` / `击倒了你` text frame for the final cut.
 3. Do not inspect the left team list for red bars; teammates create false positives.
 4. If the player is already downed at the source start or at the proposed crop start, including muted/desaturated red health bars in gray overlay or a red downed bar that is steadily shrinking, skip the clip instead of keeping post-knock footage. Do not use muted/desaturated red or decreasing red as the event time; use them only to reject already-downed clips/crops.
 5. For `.淘汰` clips where health bar evidence is not visible, use PaddleOCR lower-screen text such as `击倒了你` / `淘汰了你`.
