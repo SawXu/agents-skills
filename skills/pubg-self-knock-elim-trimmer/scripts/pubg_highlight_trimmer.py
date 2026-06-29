@@ -59,7 +59,7 @@ def iter_source_files(folder: Path, include_view_replays: bool) -> list[Path]:
 
 
 def health_state(buf: bytes) -> str:
-    red = red_soft = white = yellow = blue = bright = total = 0
+    red = red_soft = white = yellow = blue = bright = dark = total = 0
     for y in range(HEALTH_Y0, HEALTH_Y1):
         base = y * W * 3
         for x in range(HEALTH_X0, HEALTH_X1):
@@ -78,6 +78,8 @@ def health_state(buf: bytes) -> str:
                 blue += 1
             if mx > 160 and mx - mn < 95:
                 bright += 1
+            if mx < 80:
+                dark += 1
             total += 1
     red_ratio = red / total
     red_soft_ratio = red_soft / total
@@ -85,10 +87,15 @@ def health_state(buf: bytes) -> str:
     yellow_ratio = yellow / total
     blue_ratio = blue / total
     bright_ratio = bright / total
+    dark_ratio = dark / total
     # Real downed/eliminated bar is a sustained, broad red bar. Short damage flashes
     # or blue-zone overlay can tint the ROI red, so keep this threshold conservative.
-    if red_ratio > 0.075 or (red_soft_ratio > 0.055 and yellow_ratio < 0.02 and bright_ratio < 0.05):
+    if red_ratio > 0.075 and yellow_ratio < 0.02 and bright_ratio < 0.05:
         return "red"
+    # Gray/death overlays desaturate an already-downed red bar. Use this only
+    # to reject clips/crops that already start downed, never as an event trigger.
+    if red_soft_ratio > 0.055 and yellow_ratio < 0.02 and bright_ratio < 0.05 and dark_ratio > 0.85:
+        return "muted-red-downed"
     # Alive health can be white, pale yellow, blue-zone tinted, or transparent.
     if white_ratio > 0.018 or yellow_ratio > 0.018 or blue_ratio > 0.018 or bright_ratio > 0.045:
         return "present"
@@ -122,8 +129,9 @@ def detect_event(path: Path, ffmpeg: str, ffprobe: str) -> tuple[float, float | 
 
     # If the clip opens with the player already downed, it has missed the
     # pre-knock context the montage is meant to keep. Skip instead of trimming.
+    downed_states = {"red", "muted-red-downed"}
     opening = [state for t, state in states if 2.0 <= t < 4.0]
-    if len(opening) >= 10 and sum(1 for state in opening if state == "red") / len(opening) > 0.65:
+    if len(opening) >= 10 and sum(1 for state in opening if state in downed_states) / len(opening) > 0.65:
         return dur, None, "skipped-starts-already-downed"
 
     # Knock/down: the fixed bottom-center health bar turns red. Require sustained red frames.
@@ -137,17 +145,17 @@ def detect_event(path: Path, ffmpeg: str, ffprobe: str) -> tuple[float, float | 
     # grayscale/death-screen color.
     seen_health = False
     for i, (t, state) in enumerate(states):
-        if state in {"present", "red"}:
+        if state in {"present", "red", "muted-red-downed"}:
             seen_health = True
             continue
         if not seen_health:
             continue
         window = [s for u, s in states[i:] if t <= u < t + 1.5]
         later = [s for _, s in states[i:]]
-        if len(window) >= 12 and all(s == "absent" for s in window) and not any(s in {"present", "red"} for s in later):
+        if len(window) >= 12 and all(s == "absent" for s in window) and not any(s in {"present", "red", "muted-red-downed"} for s in later):
             trim_start = max(0.0, t - 5.0)
             start_window = [s for u, s in states if trim_start <= u < trim_start + 1.0]
-            starts_already_downed = bool(start_window) and sum(1 for s in start_window if s == "red") / len(start_window) > 0.45
+            starts_already_downed = bool(start_window) and sum(1 for s in start_window if s in downed_states) / len(start_window) > 0.45
             if starts_already_downed:
                 return dur, None, "skipped-trim-starts-already-downed"
             return dur, t, "direct-elim-healthbar-disappeared"
