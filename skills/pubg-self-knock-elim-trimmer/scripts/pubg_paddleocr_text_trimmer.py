@@ -34,6 +34,7 @@ except Exception as exc:  # pragma: no cover - useful when run from wrong Python
 
 
 SELF_STRICT_RE = re.compile(r"(击倒了你|淘汰了你)")
+SELF_ZONE_DOWNED_RE = re.compile(r"(你在安全区外倒地了|安全区外倒地了|安全区外倒地)")
 SELF_FUZZY_RE = re.compile(r"(击倒.{0,2}你|淘.{0,2}了?你|倒了你)")
 
 # Scaled fixed player-health-bar ROI. This mirrors pubg_highlight_trimmer.py and
@@ -69,6 +70,8 @@ def classify_self_text(text: str) -> str | None:
     text = normalize_text(text)
     if SELF_STRICT_RE.search(text):
         return "paddle-strict-self-text"
+    if SELF_ZONE_DOWNED_RE.search(text):
+        return "paddle-zone-self-downed-text"
     if SELF_FUZZY_RE.search(text):
         return "paddle-fuzzy-self-text"
     return None
@@ -588,7 +591,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("folder", type=Path, help="Folder containing PUBG highlight mp4 files")
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--final", type=Path, default=None)
-    parser.add_argument("--seconds-before", type=float, default=4.0)
+    parser.add_argument("--seconds-before", type=float, default=5.0)
     parser.add_argument("--seconds-after", type=float, default=1.0)
     parser.add_argument("--include-view-replays", action="store_true")
     parser.add_argument("--candidate-csv", type=Path, default=None, help="Optional prior OCR/healthbar CSV; only used as scan hints, not as final truth")
@@ -596,7 +599,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scan-start", type=float, default=0.0)
     parser.add_argument("--scan-end", type=float, default=None)
     parser.add_argument("--coarse-step", type=float, default=1.0)
-    parser.add_argument("--candidate-lookback", type=float, default=4.0, help="Scan this many seconds before candidate CSV hints to find the first persistent self text")
+    parser.add_argument("--candidate-lookback", type=float, default=8.0, help="Scan this many seconds before candidate CSV hints to find the first persistent self text")
     parser.add_argument("--candidate-lookahead", type=float, default=0.5, help="Scan this many seconds after candidate CSV hints")
     parser.add_argument("--candidate-step", type=float, default=0.5, help="OCR step for candidate hint windows")
     parser.add_argument("--refine-before", type=float, default=1.2)
@@ -628,8 +631,8 @@ def main(argv: list[str] | None = None) -> int:
     if not files:
         raise SystemExit("No matching .被击倒.DVR*.mp4 or .淘汰.DVR*.mp4 source files found")
 
-    outdir = args.output_dir or folder / "被击倒或淘汰前4秒_PaddleOCR自动"
-    final = args.final or folder / "淘汰_被击倒或淘汰前4秒_PaddleOCR自动合成.mp4"
+    outdir = args.output_dir or folder / "被击倒或淘汰前5秒_PaddleOCR自动"
+    final = args.final or folder / "淘汰_被击倒或淘汰前5秒_PaddleOCR自动合成.mp4"
     outdir = unique_dir(outdir)
     final = unique_path(final)
     outdir.mkdir(parents=True, exist_ok=True)
