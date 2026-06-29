@@ -15,7 +15,7 @@ Use this skill to turn PUBG highlight folders into concise clips of the player t
 - Sort source clips by filename; NVIDIA highlight names include timestamps, so lexical sort preserves time order.
 - For the final usable montage, keep the player's event context: default to 5 seconds before the player's knock/direct elimination plus 1 second after the event so the knock/elimination is visible.
 - Never use grayscale/death-screen frames as event evidence. Confirm events from the player's red bottom-center health bar, the fixed health bar UI disappearing and not returning, or lower-screen text like `击倒了你` / `淘汰了你`; otherwise skip the clip instead of guessing.
-- If the clip starts with the player's character already downed, including gray/desaturated footage where the red downed bar is muted, skip it; the clip has already missed the "before knock" context. Muted/desaturated red bars are only for skip checks, not event positioning, so alive low-health bars do not create false knock events.
+- If the clip starts with the player's character already downed, including a red downed bar that is steadily shrinking or gray/desaturated footage where the red downed bar is muted, skip it; the clip has already missed the "before knock" context. Muted/desaturated red bars and decreasing red bars are only for skip checks, not event positioning, so alive low-health bars do not create false knock events.
 
 ## Preferred Script
 
@@ -67,7 +67,7 @@ The script samples each video at 10 fps and scales to 384x240 for speed.
 1. Detect the player's own bottom-center red knocked/eliminated health bar. This is preferred because it corresponds to the player's knock/direct elimination.
 2. For direct elimination/wipe cases where no red bar appears, detect the fixed bottom-center health bar UI disappearing after it was previously visible and not returning.
 3. Do not inspect the left team list for red bars; teammates create false positives.
-4. If the player is already downed at the source start or at the proposed crop start, including muted/desaturated red health bars in gray overlay, skip the clip instead of keeping post-knock footage. Do not use muted/desaturated red as the event time; use it only to reject already-downed clips/crops.
+4. If the player is already downed at the source start or at the proposed crop start, including muted/desaturated red health bars in gray overlay or a red downed bar that is steadily shrinking, skip the clip instead of keeping post-knock footage. Do not use muted/desaturated red or decreasing red as the event time; use them only to reject already-downed clips/crops.
 5. For `.淘汰` clips where health bar evidence is not visible, use PaddleOCR lower-screen text such as `击倒了你` / `淘汰了你`.
 6. Do not use grayscale or death-screen color heuristics. When neither health bar evidence nor self-event text is found, mark the clip skipped/unverified.
 7. If the event happens before 5 seconds into the source clip, keep only from the start through the event plus the aftermath; do not include unrelated post-event footage just to force a 5-second clip.

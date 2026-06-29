@@ -58,7 +58,7 @@ def iter_source_files(folder: Path, include_view_replays: bool) -> list[Path]:
     return files
 
 
-def health_state(buf: bytes) -> str:
+def health_state(buf: bytes) -> tuple[str, float]:
     red = red_soft = white = yellow = blue = bright = dark = total = 0
     for y in range(HEALTH_Y0, HEALTH_Y1):
         base = y * W * 3
@@ -91,15 +91,30 @@ def health_state(buf: bytes) -> str:
     # Real downed/eliminated bar is a sustained, broad red bar. Short damage flashes
     # or blue-zone overlay can tint the ROI red, so keep this threshold conservative.
     if red_ratio > 0.075 and yellow_ratio < 0.02 and bright_ratio < 0.05:
-        return "red"
+        return "red", max(red_ratio, red_soft_ratio)
     # Gray/death overlays desaturate an already-downed red bar. Use this only
     # to reject clips/crops that already start downed, never as an event trigger.
     if red_soft_ratio > 0.055 and yellow_ratio < 0.02 and bright_ratio < 0.05 and dark_ratio > 0.85:
-        return "muted-red-downed"
+        return "muted-red-downed", red_soft_ratio
     # Alive health can be white, pale yellow, blue-zone tinted, or transparent.
     if white_ratio > 0.018 or yellow_ratio > 0.018 or blue_ratio > 0.018 or bright_ratio > 0.045:
-        return "present"
-    return "absent"
+        return "present", max(red_ratio, red_soft_ratio)
+    return "absent", max(red_ratio, red_soft_ratio)
+
+
+def already_downed_window(states: list[tuple[float, str, float]], start: float, end: float) -> bool:
+    window = [(state, score) for t, state, score in states if start <= t < end]
+    if len(window) < 8:
+        return False
+    downed_states = {"red", "muted-red-downed"}
+    if sum(1 for state, _ in window if state in downed_states) / len(window) > 0.65:
+        return True
+
+    scores = [score for _, score in window]
+    first = sum(scores[: max(1, len(scores) // 3)]) / max(1, len(scores) // 3)
+    last = sum(scores[-max(1, len(scores) // 3) :]) / max(1, len(scores) // 3)
+    high_red = sum(1 for score in scores if score > 0.18) / len(scores)
+    return high_red > 0.45 and first > last + 0.05
 
 
 def detect_event(path: Path, ffmpeg: str, ffprobe: str) -> tuple[float, float | None, str]:
@@ -111,7 +126,7 @@ def detect_event(path: Path, ffmpeg: str, ffprobe: str) -> tuple[float, float | 
     )
     frame_size = W * H * 3
     idx = 0
-    states: list[tuple[float, str]] = []
+    states: list[tuple[float, str, float]] = []
     try:
         while True:
             buf = proc.stdout.read(frame_size) if proc.stdout else b""
@@ -120,7 +135,8 @@ def detect_event(path: Path, ffmpeg: str, ffprobe: str) -> tuple[float, float | 
             t = idx / FPS
             idx += 1
             if t >= 2:
-                states.append((t, health_state(buf)))
+                state, red_score = health_state(buf)
+                states.append((t, state, red_score))
     finally:
         try:
             proc.kill()
@@ -129,34 +145,33 @@ def detect_event(path: Path, ffmpeg: str, ffprobe: str) -> tuple[float, float | 
 
     # If the clip opens with the player already downed, it has missed the
     # pre-knock context the montage is meant to keep. Skip instead of trimming.
-    downed_states = {"red", "muted-red-downed"}
-    opening = [state for t, state in states if 2.0 <= t < 4.0]
-    if len(opening) >= 10 and sum(1 for state in opening if state in downed_states) / len(opening) > 0.65:
+    if already_downed_window(states, 2.0, 4.0):
         return dur, None, "skipped-starts-already-downed"
 
     # Knock/down: the fixed bottom-center health bar turns red. Require sustained red frames.
-    red_times = [t for t, state in states if state == "red"]
+    red_times = [t for t, state, _ in states if state == "red"]
     for t in red_times:
         if sum(1 for u in red_times if t <= u < t + 1.1) >= 9:
+            trim_start = max(0.0, t - 5.0)
+            if already_downed_window(states, trim_start, trim_start + 2.0):
+                return dur, None, "skipped-trim-starts-already-downed"
             return dur, t, "own-knock-or-elim-red-healthbar"
 
     # Direct death/elimination: the fixed health bar UI disappears after it was
     # previously visible, and never comes back. This uses UI presence only, not
     # grayscale/death-screen color.
     seen_health = False
-    for i, (t, state) in enumerate(states):
+    for i, (t, state, _) in enumerate(states):
         if state in {"present", "red", "muted-red-downed"}:
             seen_health = True
             continue
         if not seen_health:
             continue
-        window = [s for u, s in states[i:] if t <= u < t + 1.5]
-        later = [s for _, s in states[i:]]
+        window = [s for u, s, _ in states[i:] if t <= u < t + 1.5]
+        later = [s for _, s, _ in states[i:]]
         if len(window) >= 12 and all(s == "absent" for s in window) and not any(s in {"present", "red", "muted-red-downed"} for s in later):
             trim_start = max(0.0, t - 5.0)
-            start_window = [s for u, s in states if trim_start <= u < trim_start + 1.0]
-            starts_already_downed = bool(start_window) and sum(1 for s in start_window if s in downed_states) / len(start_window) > 0.45
-            if starts_already_downed:
+            if already_downed_window(states, trim_start, trim_start + 2.0):
                 return dur, None, "skipped-trim-starts-already-downed"
             return dur, t, "direct-elim-healthbar-disappeared"
 
