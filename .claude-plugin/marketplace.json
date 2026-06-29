@@ -18,6 +18,15 @@
       "skills": [
         "skills/weekly-report-assistant"
       ]
+    },
+    {
+      "name": "pubg-self-knock-elim-trimmer",
+      "description": "Processes PUBG/NVIDIA Highlight clips that show the player themselves being knocked down or eliminated. Excludes opponent replay files such as 淘汰画面/击倒画面, detects the player red knocked/eliminated health bar or direct-elimination grayscale screen, keeps the seconds around that event, and merges the clips chronologically.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "skills/pubg-self-knock-elim-trimmer"
+      ]
     }
   ]
 }
