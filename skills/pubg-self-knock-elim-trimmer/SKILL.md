@@ -16,7 +16,7 @@ Use this skill to turn PUBG highlight folders into concise clips of the player t
 - For the final usable montage, keep the player's event context: default to 5 seconds before the player's knock/direct elimination plus 1 second after the event so the knock/elimination is visible.
 - Never use grayscale/death-screen frames as event evidence. First look for lower-screen text like `击倒了你` / `淘汰了你` / `你在安全区外倒地了`; only if that text is not found should the player bottom-center red health bar or fixed health bar UI disappearing be used as fallback evidence.
 - If the clip starts with the player's character already downed, including a red downed bar that is steadily shrinking or gray/desaturated footage where the red downed bar is muted, skip it; the clip has already missed the "before knock" context. Muted/desaturated red bars and decreasing red bars are only for skip checks, not event positioning, so alive low-health bars do not create false knock events.
-- `xx淘汰了你` / `xx击倒了你` / `你在安全区外倒地了` text has the highest priority. These messages usually persist for about 5 seconds, so coarse-scan OCR with a larger interval first, then scan backward/fine-grained to the first frame where the text appears. Do not let later health bar changes override a text event.
+- `xx淘汰了你` / `xx击倒了你` / `你在安全区外倒地了` text has the highest priority. These messages usually persist for about 5 seconds, so coarse-scan OCR first at about one frame every 3 seconds, then scan backward/fine-grained to the first frame where the text appears. Do not let later health bar changes override a text event.
 
 ## Preferred Script
 
@@ -56,7 +56,7 @@ The PaddleOCR script:
 
 - Requires Python with `paddlepaddle==3.2.2`, `paddleocr==3.7.0`, and `opencv-contrib-python`.
 - Uses PaddleOCR only as final truth for `击倒了你` / `淘汰了你` / `你在安全区外倒地了`; candidate CSV files are only scan hints.
-- Scans OCR text first, before any health-bar fallback. It coarse-scans common PUBG event windows such as `28:42`/`44:52`, full-scan/candidate hint windows in chronological order, then scans backward from a hit to anchor persistent self-event text at its first appearance.
+- Scans OCR text first, before any health-bar fallback. It full-scans at 3-second intervals plus common PUBG event windows such as `28:42`/`44:52` and candidate hint windows in chronological order, then scans backward from a hit to anchor persistent self-event text at its first appearance.
 - Skips clips whose opening already shows the player's fixed bottom-center health bar in the red downed state, unless `--allow-starts-downed` is passed.
 - Continues scanning if it sees non-self text like `你用...击倒了xxx`, so later true self-knock events are not skipped.
 - Scans common PUBG highlight windows (`28:42`, `44:52`) plus full-scan/candidate windows in chronological order unless `--no-full-scan` is passed.
