@@ -580,7 +580,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("folder", type=Path, help="Folder containing PUBG highlight mp4 files")
     parser.add_argument("--output-dir", type=Path, default=None)
     parser.add_argument("--final", type=Path, default=None)
-    parser.add_argument("--seconds-before", type=float, default=5.0)
+    parser.add_argument("--seconds-before", type=float, default=4.0)
     parser.add_argument("--seconds-after", type=float, default=1.0)
     parser.add_argument("--include-view-replays", action="store_true")
     parser.add_argument("--candidate-csv", type=Path, default=None, help="Optional prior OCR/healthbar CSV; only used as scan hints, not as final truth")
@@ -620,8 +620,8 @@ def main(argv: list[str] | None = None) -> int:
     if not files:
         raise SystemExit("No matching .被击倒.DVR*.mp4 or .淘汰.DVR*.mp4 source files found")
 
-    outdir = args.output_dir or folder / "被击倒或淘汰前5秒_PaddleOCR自动"
-    final = args.final or folder / "淘汰_被击倒或淘汰前5秒_PaddleOCR自动合成.mp4"
+    outdir = args.output_dir or folder / "被击倒或淘汰前4秒_PaddleOCR自动"
+    final = args.final or folder / "淘汰_被击倒或淘汰前4秒_PaddleOCR自动合成.mp4"
     outdir = unique_dir(outdir)
     final = unique_path(final)
     outdir.mkdir(parents=True, exist_ok=True)

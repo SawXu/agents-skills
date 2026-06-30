@@ -209,7 +209,7 @@ def main() -> int:
     parser.add_argument("folder", type=Path, help="Folder containing PUBG highlight mp4 files")
     parser.add_argument("--output-dir", type=Path, default=None, help="Directory for trimmed clips")
     parser.add_argument("--final", type=Path, default=None, help="Optional merged output mp4")
-    parser.add_argument("--seconds-before", type=float, default=5.0)
+    parser.add_argument("--seconds-before", type=float, default=4.0)
     parser.add_argument("--seconds-after", type=float, default=1.0, help="Keep this much after event so the knock/elimination is visible")
     parser.add_argument("--include-view-replays", action="store_true", help="Include 淘汰画面/击倒画面 style replay files; off by default")
     parser.add_argument("--ffmpeg", default=None)
@@ -219,8 +219,8 @@ def main() -> int:
     ffmpeg = find_tool("ffmpeg.exe", args.ffmpeg)
     ffprobe = find_tool("ffprobe.exe", args.ffprobe)
     folder = args.folder
-    outdir = args.output_dir or (folder / "被击倒或淘汰前5秒_含倒地瞬间")
-    final = args.final or (folder / "淘汰_被击倒或淘汰前5秒_含倒地瞬间_合成.mp4")
+    outdir = args.output_dir or (folder / "被击倒或淘汰前4秒_含倒地瞬间")
+    final = args.final or (folder / "淘汰_被击倒或淘汰前4秒_含倒地瞬间_合成.mp4")
 
     files = iter_source_files(folder, args.include_view_replays)
     if not files:
