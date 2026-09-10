@@ -1,18 +1,21 @@
 ---
 name: weekly-report-assistant
-description: Use when the user asks to fill, update, or append weekly reports (周报) on a SeaTable-based system, or when analyzing git commits to generate weekly progress summaries. Applies when a live browser must be driven through the `opencli-adapter-author` skill and SeaTable Slate rich-text fields need strict post-edit verification.
+description: Use when the user asks to read, summarize, fill, update, or append weekly/monthly reports (周报/月报), aggregate a month's SeaTable reports, or fill a Xinrenxinshi (薪人薪事) KPI/performance form from report content. Prefer the SeaTable API for reads and use OpenCLI browser automation for verified writes.
+license: MIT
 ---
 
-# Weekly Report Assistant
+# Weekly & Monthly Report Assistant
 
-Automates weekly report operations on SeaTable-based report systems. It analyzes recent activity (via GitLab API or local git commits), generates plain progress summaries that render cleanly in SeaTable, and fills the SeaTable UI with Slate-aware rich-text operations.
+Automates weekly and monthly report operations. It reads SeaTable records through the API, aggregates weekly entries into monthly summaries, analyzes GitLab or local git activity, writes SeaTable Slate fields, and can populate Xinrenxinshi KPI drafts from the resulting report.
 
-**Required OpenCLI skill:** `opencli-adapter-author`
+**Required OpenCLI skill for browser operations:** `opencli-browser`
+
+**API-first rule:** Read the report records through the private SeaTable API before opening the browser. Follow [references/sea-table-api.md](references/sea-table-api.md) to resolve the external app and discover its tables, views, and columns. Do not put API tokens in skill files, shell history, logs, or report output.
 
 **Browser operation rules:**
 
-- Use the `opencli-adapter-author` skill as the top-level workflow for this report system. It provides the recon, adapter, and verify discipline, while the concrete page operations still use `opencli browser *` commands.
-- Follow the `opencli-adapter-author` workflow when operating this system: validate the environment with `opencli doctor`, prefer repeatable OpenCLI flows, and use fresh `state` or `find` snapshots before page interactions.
+- Load `opencli-browser`, validate the bridge with `opencli doctor`, and use a stable named browser session.
+- Use fresh `state` or `find` snapshots before interactions and verify every written value with `get value` or a fresh state.
 - Treat SeaTable Slate rich-text fields as fragile. Any write must be verified after the popup closes; visible text inside the editor popup alone is not enough.
 - Generate report content as plain paragraphs for Slate rich text. Do not emit Markdown markers such as `#`, `##`, `###`, `-`, `*`, `1.`, or fenced code blocks.
 - When modifying an existing weekly report in `我的周报`, prefer reading the current text, composing the final full content offline, and writing it back through the Slate-compatible paste path. If this week's report already contains Markdown-style markers, rewrite the whole field into plain rich text instead of appending to it.
@@ -24,6 +27,7 @@ Automates weekly report operations on SeaTable-based report systems. It analyzes
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `WEEKLY_REPORT_URL` | Yes | 周报系统页面的完整 URL（不是 SeaTable 首页） |
+| `SEATABLE_API_TOKEN` or `SEATABLE_API_TOKEN_FILE` | For API reads | SeaTable API token; use a local ignored file for the latter |
 
 **First-time setup:** If `WEEKLY_REPORT_URL` is not set, instruct the user to configure it permanently.
 
@@ -37,29 +41,30 @@ set -Ux WEEKLY_REPORT_URL "https://inner-table.example.com/external-apps/<uuid>/
 export WEEKLY_REPORT_URL="https://inner-table.example.com/external-apps/<uuid>/"
 ```
 
-Do not proceed until the variable is set.
+For API reads, set one token source. `SEATABLE_API_TOKEN_FILE` may point to a local file such as `token.txt`; read it at runtime and never print it. If no API token is available, use the browser authentication fallback described below.
 
 ## Quick Reference
 
 | Task | Reference |
 |------|-----------|
 | Activity analysis & content generation | [references/git-analysis.md](references/git-analysis.md) |
+| Monthly aggregation & Xinrenxinshi KPI | [references/monthly-kpi.md](references/monthly-kpi.md) |
 | SeaTable Slate editor operations | [references/slate-editor.md](references/slate-editor.md) |
 | Navigation & authentication | [references/navigation.md](references/navigation.md) |
 
 ## Workflow
 
-1. **Analyze recent activity** for the target week → see [git-analysis.md](references/git-analysis.md)
-2. **Deduplicate** against previous week's report content **and** across parent-repo / submodule pairs (a parent commit that bumps a submodule pointer is the same work as the matching submodule commit — fold them into one bullet under the submodule section, see [git-analysis.md](references/git-analysis.md#cross-repo-submodule-bump-deduplication))
-3. **Navigate and authenticate** under the `opencli-adapter-author` workflow → see [navigation.md](references/navigation.md)
-4. **Locate** the target record or open the new-report form
-5. **Edit** using the Slate-safe OpenCLI path → see [slate-editor.md](references/slate-editor.md)
-6. **Verify** the rendered field value before submit
-7. **Submit and re-check** the created or updated record
+1. **Read existing report records via the SeaTable API** → see [sea-table-api.md](references/sea-table-api.md)
+2. **Choose the period:** one week for a weekly report, all matching calendar-month rows for a monthly report.
+3. **Analyze and deduplicate** activity by project and outcome, including parent-repo/submodule duplicates.
+4. **Generate the target format:** SeaTable Slate paragraphs or a structured KPI summary.
+5. **Write with OpenCLI** only when requested → see [navigation.md](references/navigation.md), [slate-editor.md](references/slate-editor.md), or [monthly-kpi.md](references/monthly-kpi.md).
+6. **Verify** every field and total weight after writing. For a newly created SeaTable report, confirm the persisted row through the API after the browser reports success.
+7. **Save a draft by default.** Final submit requires explicit user instruction.
 
 ## Tool Decision Rules
 
-- `opencli-adapter-author` is the required parent skill for this workflow, and the concrete browser operations are executed with `opencli browser *` commands.
+- `opencli-browser` governs browser operations; use `opencli browser <session> *` commands.
 - Use `opencli browser state` or `opencli browser find` before each interaction; refs are only valid for the current snapshot.
 - Prefer creating the current week's report in `周报填写` when the row does not exist yet.
 - Opening an existing `我的周报` long-text cell may require a page-side `dblclick` dispatch. A normal single click on the table cell often only focuses the row and does not open the editor.

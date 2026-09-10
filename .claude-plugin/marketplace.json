@@ -12,7 +12,7 @@
   "plugins": [
     {
       "name": "weekly-report-assistant",
-      "description": "Automates weekly report (周报) operations on SeaTable. Analyzes GitLab activity (via glab) or local git commits to generate plain rich-text summaries that render cleanly in SeaTable Slate, and relies on the opencli-adapter-author skill as the top-level OpenCLI workflow for navigation, strict verification, and fallback troubleshooting when stubborn Slate writes do not fully persist.",
+      "description": "Automates weekly and monthly reports (周报/月报) and KPI drafting. Reads private SeaTable records through verified API routes, aggregates monthly outcomes, analyzes GitLab or local git activity, and uses OpenCLI for verified SeaTable and Xinrenxinshi writes while defaulting to draft saves.",
       "source": "./",
       "strict": false,
       "skills": [

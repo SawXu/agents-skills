@@ -10,7 +10,7 @@ SeaTable uses a **Slate.js rich-text editor**. This is the most error-prone part
 
 ## Browser Boundary
 
-This skill assumes browser actions are performed through the `opencli-adapter-author` skill.
+This reference assumes browser actions follow the `opencli-browser` inspection, interaction, and verification rules.
 
 - Use `opencli browser state` or `opencli browser find` before every interaction.
 - Use `opencli browser click`, `type`, `keys`, and `get text/value` as the primary control surface.
@@ -38,7 +38,7 @@ In `我的周报`, first locate the row, then click or double-activate the long-
 ## Recommended Edit Loop
 
 1. Open the target field popup.
-2. For a blank field in `周报填写`, click inside the editable area and type or paste the content.
+2. For a blank field in `周报填写`, click inside the editable area and paste the content. Prefix the pasted plain text with one newline: on this SeaTable deployment, a paste into the initial empty Slate paragraph may consume the first block, while the leading newline preserves it. The blank leading block is omitted from the rendered preview.
 3. For an existing field in `我的周报`, read the current content first, then prepare the final full content outside the page.
 4. If this week's report still contains Markdown-style markers, convert the entire field to plain rich text before saving.
 5. Replace the whole field using the paste-like path below instead of appending one line with raw typing.
@@ -196,6 +196,20 @@ Do not use `paragraph` for section headings — all plain paragraphs look identi
 
 After closing the popup, the field preview should show the expected project names and work items instead of `编辑文本`.
 
+### Blank-Field Paste Shape
+
+For a new report, dispatch the Slate-recognized paste event with `\n` before the first heading. After closing the popup, confirm the first heading is present in the outer preview. If it is missing, reopen the form before retrying so stale Slate state is discarded.
+
+```javascript
+const dt = new DataTransfer();
+dt.setData('text/plain', '\narcs-hal\n完成事项 1\n完成事项 2');
+editor.dispatchEvent(new ClipboardEvent('paste', {
+  clipboardData: dt,
+  bubbles: true,
+  cancelable: true
+}));
+```
+
 ## Verification
 
 Always verify after editing:
@@ -205,7 +219,7 @@ opencli browser state
 opencli browser get text "div[title*='淘云扫描笔']" --nth 0
 ```
 
-Use selectors that match the outer field preview or target table cell, not the popup editor itself.
+Use selectors that match the outer field preview or target table cell, not the popup editor itself. After creating a report, treat the success page as request acceptance, then read the new row through the SeaTable API and verify its date, person, progress, plan, and risk values. Browser list views may be virtualized or sorted away from the new row, so a missing visible row alone is not proof that creation failed.
 
 For higher-risk edits, re-open the field and confirm the content remains:
 
