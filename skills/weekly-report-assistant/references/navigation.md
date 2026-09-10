@@ -1,6 +1,6 @@
 # Navigation & Authentication
 
-This reference assumes the agent is already using the `opencli-adapter-author` skill as the top-level OpenCLI workflow.
+This reference assumes the agent has loaded `opencli-browser` and is using a stable named browser session.
 
 - Start with `opencli doctor` if browser automation has not been validated in the current environment.
 - Use `opencli browser state` before interacting, and take a fresh snapshot after every page transition.
