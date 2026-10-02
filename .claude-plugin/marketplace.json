@@ -30,7 +30,7 @@
     },
     {
       "name": "mr-pr-quality-gate",
-      "description": "Use when preparing, reviewing, or submitting a GitLab MR or GitHub PR, including requests to check commit history, inspect a diff, redact sensitive data, or decide whether a change is ready for review.",
+      "description": "Use when preparing, reviewing, or submitting a GitLab MR or GitHub PR, including requests to check commit history, inspect a diff, redact sensitive data, decide whether a change is ready for review, or synchronize a branch by rebasing onto its target.",
       "source": "./",
       "strict": false,
       "skills": [
