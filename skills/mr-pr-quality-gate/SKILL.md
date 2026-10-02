@@ -3,7 +3,7 @@ name: mr-pr-quality-gate
 description: >
   Use when preparing, reviewing, or submitting a GitLab MR or GitHub PR, including
   requests to check commit history, inspect a diff, redact sensitive data, or
-  decide whether a change is ready for review.
+  decide whether a change is ready for review, or synchronize a branch by rebasing onto its target.
 license: MIT
 ---
 
@@ -34,7 +34,13 @@ git rev-list --left-right --count "$target_sha"...HEAD
 
 只有 fetch 成功、祖先检查退出码为 0，且计数结果左侧（behind）为 0 时才通过；右侧为源分支的 ahead 数量。不能只比较提交总数、提交时间或源分支自身的 upstream，也不能以“无合并冲突”代替此检查。获取失败或历史不完整导致无法判断时，标记为“未通过”。
 
-若源分支落后，先按仓库约定将目标分支合入，或在符合下文历史改写约束时 rebase 到目标分支，解决冲突后重新检查。推送或创建、更新 MR/PR 前须再次 fetch 并检查，确保目标分支在审查期间新增的提交也已包含。
+若左侧落后数大于 0，**自动 rebase 到刚 fetch 的目标 SHA**，而非仅提示用户同步。先确认工作区及暂存区干净、当前分支为个人 MR/PR 分支，且要改写的源分支提交未被他人共用；无法确认时停止并标记“未通过”，请用户决定同步方式。若源分支已推送，还须确认后续推送不会覆盖他人的提交；未经明确授权不自动强制推送。满足前提后执行：
+
+```bash
+git rebase "$target_sha"
+```
+
+遇到冲突时停止，报告冲突文件及 `git rebase --continue` / `git rebase --abort` 的选择，不得跳过提交或擅自丢弃改动。成功后重新运行祖先检查与 ahead/behind 计数，确认 behind 为 0。推送或创建、更新 MR/PR 前须再次 fetch 并检查；若目标分支在审查期间又前进，重复上述安全检查和 rebase 流程。fetch 失败、rebase 未完成或检查未通过时均标记“未通过”。
 
 ## 2. 敏感信息门禁
 
