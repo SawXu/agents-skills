@@ -41,7 +41,7 @@ Claude Code 用户也可通过 Marketplace 安装：
 
 | 技能 | 说明 |
 | ---- | ---- |
-| `mr-pr-quality-gate` | 检查 GitLab MR / GitHub PR 的提交范围、目标分支同步、敏感信息和提交历史；安全前提满足时自动 rebase 落后目标分支的源分支，并明确提交门禁与未覆盖项 |
+| `mr-pr-quality-gate` | 检查 GitLab MR / GitHub PR 的提交范围、目标分支同步、敏感信息和提交历史；安全时自动 rebase，并逐条核对 AI review 讨论：修复有效问题或说明无须修改的依据，在原线程回复并解决可解决的主题 |
 | `weekly-report-assistant` | 自动化周报/月报与绩效填写：通过私有 SeaTable API 读取并按月汇总周报，结合 GitLab 或本地 git 活动生成摘要；支持使用 OpenCLI 写入 SeaTable Slate 和薪人薪事 KPI，逐项校验权重与内容并默认仅保存草稿 |
 | `pubg-self-knock-elim-trimmer` | 处理 PUBG/NVIDIA Highlights 中“自己被击倒或被淘汰”的 `.淘汰.DVR.mp4`，排除 `淘汰画面/击倒画面` 等对手回放，可用 PaddleOCR 识别下方 `击倒了你/淘汰了你` 文字或用血条启发式定位，保留事件前后片段并按时间顺序合成 |
 
