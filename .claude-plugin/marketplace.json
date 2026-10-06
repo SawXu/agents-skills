@@ -30,7 +30,7 @@
     },
     {
       "name": "mr-pr-quality-gate",
-      "description": "Use when preparing, reviewing, or submitting a GitLab MR or GitHub PR, including requests to check commit history, inspect a diff, redact sensitive data, decide whether a change is ready for review, or synchronize a branch by rebasing onto its target.",
+      "description": "MR/PR quality gate: check submission scope, target branch synchronization, secrets and commit history; for existing GitLab MRs or GitHub PRs, triage AI review feedback, fix or explain findings, reply in the original thread and resolve addressed discussions.",
       "source": "./",
       "strict": false,
       "skills": [
