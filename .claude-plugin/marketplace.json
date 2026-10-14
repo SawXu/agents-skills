@@ -30,7 +30,7 @@
     },
     {
       "name": "mr-pr-quality-gate",
-      "description": "MR/PR quality gate: check submission scope, target branch synchronization, secrets and commit history; for existing GitLab MRs or GitHub PRs, triage AI review feedback, fix or explain findings, reply in the original thread and resolve addressed discussions.",
+      "description": "User-invoked MR/PR quality gate. Checks submission scope, target synchronization, secrets, and commit history, or triages AI review discussions and resolves addressed threads. Reports readiness only; the user merges manually.",
       "source": "./",
       "strict": false,
       "skills": [
