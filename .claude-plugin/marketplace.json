@@ -29,12 +29,22 @@
       ]
     },
     {
-      "name": "mr-pr-quality-gate",
-      "description": "User-invoked MR/PR quality gate. Checks submission scope, target synchronization, secrets, and commit history, or triages AI review discussions and resolves addressed threads. Reports readiness only; the user merges manually.",
+      "name": "pr-commits-tidy",
+      "description": "Model- or user-invoked PR/MR commit tidying: combines repeated changes, rebases onto the target branch, and pushes with --force-with-lease.",
       "source": "./",
       "strict": false,
       "skills": [
-        "skills/mr-pr-quality-gate"
+        "skills/pr-commits-tidy"
+      ]
+    },
+    {
+      "name": "pr-ci-review-fix",
+      "description": "User-invoked handling of CI AI review findings via glab/gh: fixes valid issues or replies with reasons, then uses pr-commits-tidy to organize commits and update the PR/MR before resolving discussions.",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "skills/pr-ci-review-fix",
+        "skills/pr-commits-tidy"
       ]
     }
   ]
