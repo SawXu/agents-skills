@@ -1,4 +1,4 @@
-# AI review 讨论
+# CI 中的 AI review 讨论
 
 “解决主题”指平台的 Resolve 操作。回复、改文件、reaction 或整单 approve 都不是 Resolve。
 
@@ -6,7 +6,7 @@
 
 确认仓库、MR/PR 编号、源分支和目标分支，以及当前分支与远端的对应。不能唯一确定时向用户要链接。
 
-用已配置的 GitLab/GitHub CLI 或 API 读取分页后的完整讨论，包含已解决和过时线程。GitLab 记录 discussions 的 `notes`、`resolved`、`resolvable`。GitHub 记录 review threads 的 `comments`、`isResolved`、`isOutdated`、`isResolvable`（以实际字段为准）。命令参数以当前 CLI `--help` 为准；`--help` 没有的能力改用平台 API。
+GitLab 用 `glab`，GitHub 用 `gh`，读取分页后的完整 AI review 结果，包括 review 总结、普通评论和 review 线程，以及已解决和过时的讨论。GitLab 记录 discussions 的 `notes`、`resolved`、`resolvable`。GitHub 记录 review threads 的 `comments`、`isResolved`、`isOutdated`、`isResolvable`（以实际字段为准）。命令参数以当前 CLI `--help` 为准；专用子命令不支持的能力通过 `glab api` / `gh api` 调用平台 API。
 
 只处理能识别的 AI review：机器人账户、已知 AI reviewer，或用户点名的讨论。身份不明先核实。人工评论不进入本流程。
 
@@ -18,11 +18,13 @@
 
 对照评论原文、所指版本的 diff、当前代码、调用方和测试做判断。过时线程也要判断问题在当前版本是否还在。
 
-- **成立**：做最小修复，按项目约定做相关验证，记下测试结果和代码位置。验证失败或无法验证时保持未解决，并写明阻碍。源分支的提交和推送沿用用户已给的授权，不改写共享历史。修复已经出现在 MR/PR 的可见版本并且复核通过后，在原讨论回复修复位置、提交和验证结果，再 Resolve。未获推送授权时，报告停留在本地的修复，远端保持未解决。
+- **成立**：做最小修复并按项目约定验证。将通过验证的修复提交后，执行 [pr-commits-tidy](../../pr-commits-tidy/SKILL.md)，rebase、整理 commits 并推送到当前 PR/MR 源分支。可集中处理多条修复后统一整理推送；使用整理后的最终提交 SHA 回复。确认修复在 PR/MR 中可见且复核通过，再在原讨论回复修复位置、提交和验证结果并 Resolve。验证或推送失败、用户限制仅本地修复时，保留未解决并报告阻碍。该 skill 未安装时提示安装，保留本地修复。
 - **不成立或当前版本已修复**：在原讨论给出可核对证据（路径和行、行为、测试或已有提交），说明为什么不再改。回复成功且讨论可解决时再 Resolve。
 - **证据不足、评论有歧义，或超出本次授权**：在原讨论写明待确认点，保持未解决。
 
 一个主题里有多个独立问题，或人工后续还有未完成项时，逐项核对；全部处理完才 Resolve。
+
+普通评论或 review 总结没有 Resolve 能力时，在对应评论位置回复或明确引用其链接，不虚构线程状态。
 
 回复前重读讨论状态。回复后确认回复在原讨论里，再调用 resolve discussion / review thread，然后重读并确认状态为 resolved。线程不可解决时只回复，并报告“无法解决主题”。
 
