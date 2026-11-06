@@ -41,7 +41,7 @@ Claude Code 用户也可通过 Marketplace 安装：
 
 | 技能 | 说明 |
 | ---- | ---- |
-| `multica-tasks` | 自动识别 `https://lsagents.listenai.com` 的任务读取、查找与总结需求：通过本机 `multica` CLI 显式指定 server/workspace，只读定位 issue 并用完整 UUID 获取详情；按需补充评论、子任务和执行活动，注明证据与部分读取范围 |
+| `multica-tasks` | 读取 lsagents.listenai.com 上的任务时使用，包括该站任务链接或该站上下文中的任务编号。 |
 | `pr-commits-tidy` | 支持模型调用或手动调用。整理 PR/MR 的 commits：合并重复提交与同一目的的修补，rebase 目标分支后用 `--force-with-lease` 推送 |
 | `pr-ci-review-fix` | 手动调用。用 `glab` / `gh` 检查 CI 中的 AI review 意见，修复有效问题，对无须修改的意见回复原因；修复后用 `pr-commits-tidy` 整理提交并更新 PR/MR，再回复和 Resolve。Marketplace 插件包含提交整理技能；合并由用户执行 |
 | `weekly-report-assistant` | 自动化周报/月报与绩效填写：通过私有 SeaTable API 读取并按月汇总周报，结合 GitLab 或本地 git 活动生成摘要；支持使用 OpenCLI 写入 SeaTable Slate 和薪人薪事 KPI，逐项校验权重与内容并默认仅保存草稿 |

@@ -1,6 +1,6 @@
 ---
 name: multica-tasks
-description: 当用户要求读取、查找或总结 https://lsagents.listenai.com 上的 task/任务，或提供该站任务链接要求读取时使用。通过本机 multica CLI 只读获取任务详情；需要评论、子任务或执行活动时按需补充上下文。
+description: 读取 lsagents.listenai.com 上的任务时使用，包括该站任务链接或该站上下文中的任务编号。
 license: MIT
 ---
 
