@@ -12,7 +12,7 @@
   "plugins": [
     {
       "name": "multica-tasks",
-      "description": "自动识别 https://lsagents.listenai.com 的任务读取、查找与总结需求：通过本机 multica CLI 显式指定 server/workspace，只读定位 issue 并用完整 UUID 获取详情；按需补充评论、子任务和执行活动，注明证据与部分读取范围。",
+      "description": "读取 lsagents.listenai.com 上的任务时使用，包括该站任务链接或该站上下文中的任务编号。",
       "source": "./",
       "strict": false,
       "skills": [
